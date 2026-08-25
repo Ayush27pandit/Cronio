@@ -1,7 +1,17 @@
 package main
 
-import "fmt"
+import (
+	"log"
+
+	"github.com/Ayush27pandit/Cronio/server/internal/config"
+)
 
 func main() {
-    fmt.Println("Cronio Server is running...")
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	log.Printf("Cronio Server starting on port %s", cfg.Port)
+
 }

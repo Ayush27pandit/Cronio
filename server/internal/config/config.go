@@ -1,0 +1,32 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
+type Config struct {
+	Port     string
+	LogLevel string
+}
+
+func LoadConfig() (*Config, error) {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	//validate port number
+	if _, err := strconv.Atoi(port); err != nil {
+		return nil, fmt.Errorf("invalid PORT %q: %w", port, err)
+	}
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	return &Config{
+		Port:     port,
+		LogLevel: logLevel,
+	}, nil
+}
