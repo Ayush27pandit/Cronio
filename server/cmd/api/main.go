@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/Ayush27pandit/Cronio/server/internal/config"
+	"github.com/Ayush27pandit/Cronio/server/internal/server"
 )
 
 func main() {
@@ -12,6 +13,10 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	log.Printf("Cronio Server starting on port %s", cfg.Port)
+	srv := server.New(cfg.Port)
+	log.Printf("Cronio server listening on Port:%s", cfg.Port)
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatalf("server: %v", err)
+	}
 
 }
