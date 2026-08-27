@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -46,10 +47,17 @@ func main() {
 
 	log.Println("Database migrations completed successfully")
 
-	srv := server.New(cfg.Port)
-	//start server on the different goroutine
+	// Create structured logger.
+	logger := slog.New(
+		slog.NewJSONHandler(os.Stdout, nil),
+	)
+
+	// Create HTTP server.
+	srv := server.New(cfg.Port, logger)
+
+	// Start server in a separate goroutine.
 	go func() {
-		log.Printf("Cronio Server is listening on port %s", cfg.Port)
+		log.Printf("Cronio server is listening on port %s", cfg.Port)
 
 		if err := srv.ListenAndServe(); err != nil &&
 			!errors.Is(err, http.ErrServerClosed) {
@@ -59,6 +67,7 @@ func main() {
 
 	// Wait for termination signal.
 	stop := make(chan os.Signal, 1)
+
 	signal.Notify(
 		stop,
 		syscall.SIGINT,
@@ -67,7 +76,7 @@ func main() {
 
 	<-stop
 
-	log.Println("Shutting signal received")
+	log.Println("Shutdown signal received")
 
 	// Give active requests time to finish.
 	ctx, cancel := context.WithTimeout(
