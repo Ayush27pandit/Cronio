@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	Port     string
-	LogLevel string
+	Port        string
+	LogLevel    string
+	DatabaseURL string
 }
 
 func LoadConfig() (*Config, error) {
@@ -25,8 +26,14 @@ func LoadConfig() (*Config, error) {
 	if logLevel == "" {
 		logLevel = "info"
 	}
+
+	databaseURL := os.Getenv("DB_URL")
+	if databaseURL == "" {
+		return nil, fmt.Errorf("DB_URL environment variable is required")
+	}
 	return &Config{
-		Port:     port,
-		LogLevel: logLevel,
+		Port:        port,
+		LogLevel:    logLevel,
+		DatabaseURL: databaseURL,
 	}, nil
 }
