@@ -33,14 +33,14 @@ Distributed job scheduler (README: cron-first trigger, Postgres is source of tru
 - **Runtime:** Go (README badge `1.22+`, `server/go.mod:3` says `1.27.0` — invalid, treat as `1.22`), Postgres `15+` with `pgcrypto`, `chi/v5`, `jackc/pgx/v5/stdlib`, `sqlc`, `golang-migrate/migrate/v4`, `robfig/cron/v3` (5-field only).
 - **Module root is `server/`**, not repo root. All `go` commands run from `server/` (`server/go.mod:1` module `github.com/Ayush27pandit/Cronio/server`).
 - **Entrypoint:** `server/cmd/api/main.go:20` — `godotenv.Load()` (optional) → `config.LoadConfig()` → `database.New()` → `database.Migrate()` (embed FS) → `server.New()` (chi). Only route is `GET /health` (`server/internal/server/server.go:20`).
-- **Empty scaffolding:** `server/internal/jobs/`, `server/internal/schedular/` (typo), `server/cmd/worker/` are empty; `server/internal/scheduler/schedule_te.go:1` is empty and **breaks `go vet`/`go test`** — delete or rename to `schedule_test.go` first.
+- **Deep module:** `server/internal/job/` owns the Job seam (`schedule.go:1` typed `Schedule{Cron|Interval|Once}`, `tenant.go:1` `TenantID`, `service.go:1` `ScheduleDue` with `SKIP LOCKED` + concurrency). Pruned: `internal/scheduler/`, `internal/database/repository/`, `internal/jobs/`, `internal/schedular/` were shallow/empty and removed in `66a1ec6`.
 - **No CI / lint / task runner config** — no Makefile, `golangci-lint`, pre-commit, or `.github/workflows` to respect. `.opencode/` is plugin cache (ignore).
 
 ## Commands (run from `server/`)
 
 ```bash
-go vet ./...          # must pass before test; currently fails on schedule_te.go
-go test ./...         # no tests yet; needs live Postgres for DB tests when added
+go vet ./...          # must pass; was blocked by empty schedule_te.go (now fixed)
+go test ./...         # 8 in-process tests in internal/job; DB tests need live Postgres
 go run ./cmd/api      # requires DB_URL; loads server/.env if present
 sqlc generate         # after editing internal/database/queries/*.sql or migrations; output is committed to internal/database/generated/
 go fmt ./...
@@ -58,16 +58,14 @@ Order: `vet -> test -> run`. No `DATABASE_URL` — canonical var is `DB_URL`.
 
 ## Architecture Notes (non-obvious)
 
-- **Scheduler logic:** `internal/scheduler/schedule.go:16` `NextRun(Schedule{Type,Expression,Timezone}, from)` dispatches `cron` (5-field `MIN HOUR DOM MONTH DOW`, `Timezone` via `time.LoadLocation`, returns UTC), `interval` (Go `time.ParseDuration`, must be `>0`), `once` (`time.RFC3339`, disables if `!next.After(from)`).
-- **SQL:** `internal/database/queries/job.sql` + `schedular.sql` (typo — file is `schedular.sql:1`, generated as `schedular.sql.go:1`) via `sqlc.yaml:1` (`engine: postgresql`, `sql_package: database/sql`, `emit_json_tags: true`). Edit queries → `sqlc generate`.
-- **Repository:** `internal/database/repository/scheduler.go:24` `ScheduleJob` does `BEGIN; LockDueJob FOR UPDATE; CreateExecution; UpdateJobNextRun; COMMIT` — currently missing `SKIP LOCKED` and hard-codes `Enabled:true`.
+- **Scheduler logic:** `internal/job/schedule.go:1` `Schedule{Cron|Interval|Once}` with `NewCronSchedule`/`NewIntervalSchedule`/`NewOnceSchedule` validation + `NextRun(from)` pure (cron 5-field `MIN HOUR DOM MONTH DOW` via `time.LoadLocation` → UTC, interval `time.ParseDuration >0`, once `time.RFC3339` disables if `!next.After(from)`).
+- **SQL:** `internal/database/queries/job.sql` + `scheduler.sql` (was `schedular.sql`, fixed `66a1ec6`) via `sqlc.yaml:1` (`engine: postgresql`, `sql_package: database/sql`, `emit_json_tags: true`). Edit queries → `sqlc generate`.
+- **Job seam:** `internal/job/service.go:1` `ScheduleDue(ctx,TenantID,jobID)` does `BEGIN; LockDueJob FOR UPDATE SKIP LOCKED (tenant scoped); CountActiveExecutions; CreateExecution; UpdateJobNextRun (enabled=false for finished Once); COMMIT`. Old `internal/database/repository/scheduler.go` pruned.
 - **Middleware:** `server/internal/server/middleware/` — `RequestID` always generates new UUID (ignores incoming `X-Request-ID`), `Recovery` logs via `slog` and returns `500 {"error":"internal server error"}`, `Logger` captures status via wrapped `ResponseWriter`.
 
 ## Gotchas
 
-- Fix `schedule_te.go` before any `go` command or CI will fail.
-- `schedular` vs `scheduler` typo is load-bearing — rename requires updating `sqlc.yaml`, queries, and `generated/` imports.
 - Generated code (`internal/database/generated/`) is committed — don't hand-edit; rerun `sqlc generate`.
 - Health check does not ping DB — `ok` even if Postgres down.
-- No auth/tenant extraction yet; `jobs.tenant_id` exists but `ListJobs`/`GetJob` have no middleware enforcing it.
+- No auth/tenant extraction yet; `jobs.tenant_id` exists but `ListJobs`/`GetJob` have no middleware enforcing it; `job.Service` now enforces tenant at `SKIP LOCKED` seam.
 - Keep changes surgical — next to `.opencode/skills/karpathy-guidelines/SKILL.md:1` rule, don't reformat adjacent code.
