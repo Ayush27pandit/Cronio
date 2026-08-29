@@ -1,3 +1,9 @@
+// Package job owns the Job seam: typed Schedule, TenantID, and the
+// transaction that turns a due Job into an Execution.
+//
+// A Schedule is a value, not a string. Callers build it with
+// NewCronSchedule, NewIntervalSchedule, or NewOnceSchedule so
+// validation happens once at creation, not on every tick.
 package job
 
 import (
@@ -8,13 +14,17 @@ import (
 )
 
 const (
-	ScheduleCron     = "cron"
+	// ScheduleCron is a 5-field cron plus timezone, for example "0 9 * * *" in "Asia/Kolkata".
+	ScheduleCron = "cron"
+	// ScheduleInterval is a Go duration like "15m" or "1h".
 	ScheduleInterval = "interval"
-	ScheduleOnce     = "once"
+	// ScheduleOnce is a single RFC3339 timestamp like "2026-09-01T09:00:00Z".
+	ScheduleOnce = "once"
 )
 
 // Schedule is a typed value behind the Job module seam.
-// Construction validates. NextRun is pure and needs no I/O.
+// Build it with NewCronSchedule, NewIntervalSchedule, or NewOnceSchedule.
+// Those constructors validate. NextRun is pure and needs no DB.
 //
 // CONTEXT.md: Schedule — when a Job fires. One of Cron, Interval, Once.
 type Schedule struct {
@@ -31,8 +41,14 @@ type Schedule struct {
 	onceExpr string
 }
 
-// NewCronSchedule validates expr (5-field) and timezone.
-// timezone "" defaults to UTC.
+// NewCronSchedule builds a cron Schedule.
+// expr must be 5-field cron like "0 9 * * *". timezone is IANA like "Asia/Kolkata".
+// Empty timezone defaults to "UTC". Returns an error if the expression or
+// timezone is invalid, so callers fail fast at job creation.
+//
+// Example:
+//
+//	s, err := job.NewCronSchedule("0 9 * * *", "Asia/Kolkata")
 func NewCronSchedule(expr, timezone string) (Schedule, error) {
 	if expr == "" {
 		return Schedule{}, fmt.Errorf("cron expression is required")
@@ -56,7 +72,13 @@ func NewCronSchedule(expr, timezone string) (Schedule, error) {
 	}, nil
 }
 
-// NewIntervalSchedule validates Go duration string (e.g. "15m", "1h").
+// NewIntervalSchedule builds an interval Schedule.
+// expr is a Go duration like "15m", "1h", "30s". It must be greater than zero.
+// Returns an error otherwise.
+//
+// Example:
+//
+//	s, err := job.NewIntervalSchedule("15m")
 func NewIntervalSchedule(expr string) (Schedule, error) {
 	if expr == "" {
 		return Schedule{}, fmt.Errorf("interval expression is required")
@@ -75,7 +97,14 @@ func NewIntervalSchedule(expr string) (Schedule, error) {
 	}, nil
 }
 
-// NewOnceSchedule validates RFC3339 timestamp.
+// NewOnceSchedule builds a once Schedule.
+// expr must be RFC3339 like "2026-09-01T09:00:00Z". Validation happens here.
+// If the timestamp is already past, NextRun will later return enabled=false.
+// Returns an error if expr is not RFC3339.
+//
+// Example:
+//
+//	s, err := job.NewOnceSchedule("2026-09-01T09:00:00Z")
 func NewOnceSchedule(expr string) (Schedule, error) {
 	if expr == "" {
 		return Schedule{}, fmt.Errorf("once timestamp is required")
@@ -91,7 +120,15 @@ func NewOnceSchedule(expr string) (Schedule, error) {
 	}, nil
 }
 
-// NextRun returns next firing after `from`. Enabled false means Once has passed.
+// NextRun returns the next firing time after from.
+// enabled is false only for Once that is already past. For Cron and Interval
+// it is always true. The returned time is in UTC. It is pure and needs no DB.
+//
+// Example:
+//
+//	next, enabled, err := sched.NextRun(time.Now().UTC())
+//	if !enabled { // once job is done, disable it
+//	}
 func (s Schedule) NextRun(from time.Time) (time.Time, bool, error) {
 	switch s.kind {
 	case ScheduleCron:
@@ -126,10 +163,12 @@ func (s Schedule) nextOnce(from time.Time) (time.Time, bool, error) {
 	return s.onceAt.UTC(), true, nil
 }
 
-// Kind returns "cron" | "interval" | "once".
+// Kind returns the schedule kind: "cron", "interval", or "once".
 func (s Schedule) Kind() string { return s.kind }
 
-// Expr returns the original expression for storage.
+// Expr returns the original expression for storage in Postgres.
+// For cron it is the 5-field string, for interval the duration string,
+// for once the RFC3339 timestamp.
 func (s Schedule) Expr() string {
 	switch s.kind {
 	case ScheduleCron:
@@ -143,7 +182,8 @@ func (s Schedule) Expr() string {
 	}
 }
 
-// Timezone returns the IANA timezone for cron, or UTC for others.
+// Timezone returns the IANA timezone for storage.
+// Cron keeps its timezone like "Asia/Kolkata". Interval and Once always return "UTC".
 func (s Schedule) Timezone() string {
 	if s.kind == ScheduleCron {
 		return s.timezone
@@ -151,7 +191,8 @@ func (s Schedule) Timezone() string {
 	return "UTC"
 }
 
-// Location returns the parsed location for cron, or UTC otherwise.
+// Location returns the parsed *time.Location for cron, or UTC otherwise.
+// Callers rarely need it, but it is here for testing and for NextRun.
 func (s Schedule) Location() *time.Location {
 	if s.kind == ScheduleCron && s.location != nil {
 		return s.location

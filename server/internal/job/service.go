@@ -12,30 +12,41 @@ import (
 	db "github.com/Ayush27pandit/Cronio/server/internal/database/generated"
 )
 
-// Errors for ScheduleDue.
+// Errors for ScheduleDue. Callers can check with errors.Is.
 var (
-	ErrNotDue            = errors.New("job not due")
+	// ErrNotDue is returned when a job is not yet due. ScheduleDue currently
+	// returns uuid.Nil, nil for this case and reserves ErrNotDue for future callers
+	// that want to distinguish it.
+	ErrNotDue = errors.New("job not due")
+	// ErrConcurrencyLimited is returned when a job already has max active executions.
 	ErrConcurrencyLimited = errors.New("concurrency limit reached")
 )
 
-// Service is the deep Job module. It owns schedule calculation and
-// execution creation behind one seam. Callers supply TenantID explicitly.
+// Service is the deep Job module. It owns the transaction that turns a due Job
+// into an Execution. Callers supply TenantID explicitly so tenant isolation
+// is checked inside the lock. One Service is shared by HTTP handlers and
+// the scheduler loop.
 type Service struct {
 	db *sql.DB
 }
 
-// New creates a Job Service.
+// New creates a Job Service that uses db for all queries.
+// Example:
+//
+//	svc := job.New(db)
+//	execID, err := svc.ScheduleDue(ctx, tenantID, jobID)
 func New(db *sql.DB) *Service {
 	return &Service{db: db}
 }
 
 // ScheduleDue atomically claims a due job, checks concurrency, creates an
 // execution, and advances next_run_at. It is safe for a fleet of schedulers
-// via FOR UPDATE SKIP LOCKED.
+// because the row is locked with FOR UPDATE SKIP LOCKED.
 //
-// Returns uuid.Nil when job is not due, already locked by another scheduler,
-// or at concurrency limit — not an error. Returns ErrConcurrencyLimited only
-// when the caller wants to distinguish that case.
+// Returns uuid.Nil with no error when the job is not due, already locked by
+// another scheduler, or no row matches the tenant and id. Returns an error
+// wrapping ErrConcurrencyLimited when the job already has max active executions.
+// On success it returns the new execution id.
 func (s *Service) ScheduleDue(ctx context.Context, tenantID TenantID, jobID uuid.UUID) (uuid.UUID, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -121,6 +132,8 @@ func (s *Service) ScheduleDue(ctx context.Context, tenantID TenantID, jobID uuid
 	return exec.ID, nil
 }
 
+// scheduleFromRow rebuilds a typed Schedule from the three columns stored in Postgres.
+// It is a helper for ScheduleDue so the row does not leak raw strings to callers.
 func scheduleFromRow(typ, expr, tz string) (Schedule, error) {
 	switch typ {
 	case ScheduleCron:

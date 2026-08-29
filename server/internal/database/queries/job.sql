@@ -70,3 +70,58 @@ WHERE enabled = true
   AND next_run_at <= NOW()
 ORDER BY next_run_at ASC
 LIMIT $1;
+
+-- name: CreateJob :one
+INSERT INTO jobs (
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING
+    id,
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled,
+    created_at,
+    updated_at;
+
+-- name: GetJobForTenant :one
+SELECT
+    id,
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_type,
+    target_url,
+    target_method,
+    target_headers,
+    target_timeout_seconds,
+    retry_max_attempts,
+    retry_backoff_type,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+    concurrency_max_executions,
+    misfire_policy,
+    enabled,
+    next_run_at,
+    metadata,
+    created_at,
+    updated_at
+FROM jobs
+WHERE id = $1 AND tenant_id = $2;

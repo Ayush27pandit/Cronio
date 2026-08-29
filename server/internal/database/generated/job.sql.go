@@ -8,9 +8,95 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const createJob = `-- name: CreateJob :one
+INSERT INTO jobs (
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING
+    id,
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled,
+    created_at,
+    updated_at
+`
+
+type CreateJobParams struct {
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	Name         string         `json:"name"`
+	Description  sql.NullString `json:"description"`
+	ScheduleType string         `json:"schedule_type"`
+	ScheduleExpr string         `json:"schedule_expr"`
+	Timezone     string         `json:"timezone"`
+	TargetUrl    string         `json:"target_url"`
+	NextRunAt    sql.NullTime   `json:"next_run_at"`
+	Enabled      bool           `json:"enabled"`
+}
+
+type CreateJobRow struct {
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	Name         string         `json:"name"`
+	Description  sql.NullString `json:"description"`
+	ScheduleType string         `json:"schedule_type"`
+	ScheduleExpr string         `json:"schedule_expr"`
+	Timezone     string         `json:"timezone"`
+	TargetUrl    string         `json:"target_url"`
+	NextRunAt    sql.NullTime   `json:"next_run_at"`
+	Enabled      bool           `json:"enabled"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error) {
+	row := q.db.QueryRowContext(ctx, createJob,
+		arg.TenantID,
+		arg.Name,
+		arg.Description,
+		arg.ScheduleType,
+		arg.ScheduleExpr,
+		arg.Timezone,
+		arg.TargetUrl,
+		arg.NextRunAt,
+		arg.Enabled,
+	)
+	var i CreateJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Description,
+		&i.ScheduleType,
+		&i.ScheduleExpr,
+		&i.Timezone,
+		&i.TargetUrl,
+		&i.NextRunAt,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const getDueJobs = `-- name: GetDueJobs :many
 SELECT
@@ -97,6 +183,71 @@ WHERE id = $1
 
 func (q *Queries) GetJob(ctx context.Context, id uuid.UUID) (Job, error) {
 	row := q.db.QueryRowContext(ctx, getJob, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Description,
+		&i.ScheduleType,
+		&i.ScheduleExpr,
+		&i.Timezone,
+		&i.TargetType,
+		&i.TargetUrl,
+		&i.TargetMethod,
+		&i.TargetHeaders,
+		&i.TargetTimeoutSeconds,
+		&i.RetryMaxAttempts,
+		&i.RetryBackoffType,
+		&i.RetryInitialDelaySeconds,
+		&i.RetryMaxDelaySeconds,
+		&i.ConcurrencyMaxExecutions,
+		&i.MisfirePolicy,
+		&i.Enabled,
+		&i.NextRunAt,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getJobForTenant = `-- name: GetJobForTenant :one
+SELECT
+    id,
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_type,
+    target_url,
+    target_method,
+    target_headers,
+    target_timeout_seconds,
+    retry_max_attempts,
+    retry_backoff_type,
+    retry_initial_delay_seconds,
+    retry_max_delay_seconds,
+    concurrency_max_executions,
+    misfire_policy,
+    enabled,
+    next_run_at,
+    metadata,
+    created_at,
+    updated_at
+FROM jobs
+WHERE id = $1 AND tenant_id = $2
+`
+
+type GetJobForTenantParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetJobForTenant(ctx context.Context, arg GetJobForTenantParams) (Job, error) {
+	row := q.db.QueryRowContext(ctx, getJobForTenant, arg.ID, arg.TenantID)
 	var i Job
 	err := row.Scan(
 		&i.ID,
