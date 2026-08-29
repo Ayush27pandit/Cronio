@@ -36,8 +36,18 @@ func (r *SchedulerRepository) ScheduleJob(
 	q := db.New(r.db)
 	txq := q.WithTx(tx)
 
-	// 1. Lock the job and make sure it is still due.
-	job, err := txq.LockDueJob(ctx, jobID)
+	// 1. Look up tenant then lock the job (deprecated path — use job.Service).
+	meta, err := txq.GetJob(ctx, jobID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return fmt.Errorf("get job: %w", err)
+	}
+	job, err := txq.LockDueJob(ctx, db.LockDueJobParams{
+		ID:       jobID,
+		TenantID: meta.TenantID,
+	})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil

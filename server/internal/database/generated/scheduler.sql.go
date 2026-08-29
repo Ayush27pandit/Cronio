@@ -13,6 +13,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const countActiveExecutions = `-- name: CountActiveExecutions :one
+SELECT COUNT(*)::int AS count
+FROM executions
+WHERE job_id = $1
+  AND status IN ('CLAIMED', 'RUNNING')
+`
+
+func (q *Queries) CountActiveExecutions(ctx context.Context, jobID uuid.UUID) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countActiveExecutions, jobID)
+	var count int32
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createExecution = `-- name: CreateExecution :one
 INSERT INTO executions (
     job_id,
@@ -71,25 +85,35 @@ SELECT
     schedule_type,
     schedule_expr,
     timezone,
-    next_run_at
+    next_run_at,
+    concurrency_max_executions,
+    misfire_policy
 FROM jobs
 WHERE id = $1
+  AND tenant_id = $2
   AND enabled = true
   AND next_run_at <= NOW()
-FOR UPDATE
+FOR UPDATE SKIP LOCKED
 `
 
-type LockDueJobRow struct {
-	ID           uuid.UUID    `json:"id"`
-	TenantID     uuid.UUID    `json:"tenant_id"`
-	ScheduleType string       `json:"schedule_type"`
-	ScheduleExpr string       `json:"schedule_expr"`
-	Timezone     string       `json:"timezone"`
-	NextRunAt    sql.NullTime `json:"next_run_at"`
+type LockDueJobParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
 }
 
-func (q *Queries) LockDueJob(ctx context.Context, id uuid.UUID) (LockDueJobRow, error) {
-	row := q.db.QueryRowContext(ctx, lockDueJob, id)
+type LockDueJobRow struct {
+	ID                       uuid.UUID    `json:"id"`
+	TenantID                 uuid.UUID    `json:"tenant_id"`
+	ScheduleType             string       `json:"schedule_type"`
+	ScheduleExpr             string       `json:"schedule_expr"`
+	Timezone                 string       `json:"timezone"`
+	NextRunAt                sql.NullTime `json:"next_run_at"`
+	ConcurrencyMaxExecutions int32        `json:"concurrency_max_executions"`
+	MisfirePolicy            string       `json:"misfire_policy"`
+}
+
+func (q *Queries) LockDueJob(ctx context.Context, arg LockDueJobParams) (LockDueJobRow, error) {
+	row := q.db.QueryRowContext(ctx, lockDueJob, arg.ID, arg.TenantID)
 	var i LockDueJobRow
 	err := row.Scan(
 		&i.ID,
@@ -98,6 +122,8 @@ func (q *Queries) LockDueJob(ctx context.Context, id uuid.UUID) (LockDueJobRow, 
 		&i.ScheduleExpr,
 		&i.Timezone,
 		&i.NextRunAt,
+		&i.ConcurrencyMaxExecutions,
+		&i.MisfirePolicy,
 	)
 	return i, err
 }

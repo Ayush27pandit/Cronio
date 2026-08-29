@@ -5,12 +5,21 @@ SELECT
     schedule_type,
     schedule_expr,
     timezone,
-    next_run_at
+    next_run_at,
+    concurrency_max_executions,
+    misfire_policy
 FROM jobs
 WHERE id = $1
+  AND tenant_id = $2
   AND enabled = true
   AND next_run_at <= NOW()
-FOR UPDATE;
+FOR UPDATE SKIP LOCKED;
+
+-- name: CountActiveExecutions :one
+SELECT COUNT(*)::int AS count
+FROM executions
+WHERE job_id = $1
+  AND status IN ('CLAIMED', 'RUNNING');
 
 
 -- name: CreateExecution :one
