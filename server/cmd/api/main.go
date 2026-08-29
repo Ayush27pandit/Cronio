@@ -53,7 +53,7 @@ func main() {
 	)
 
 	// Create HTTP server.
-	srv := server.New(cfg.Port, logger)
+	srv := server.New(cfg.Port, logger, db)
 
 	// Start server in a separate goroutine.
 	go func() {
