@@ -125,3 +125,29 @@ SELECT
     updated_at
 FROM jobs
 WHERE id = $1 AND tenant_id = $2;
+
+-- name: UpdateJob :one
+UPDATE jobs SET
+    name = $3,
+    description = $4,
+    schedule_type = $5,
+    schedule_expr = $6,
+    timezone = $7,
+    target_url = $8,
+    next_run_at = $9,
+    enabled = $10,
+    updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING
+    id,
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled,
+    created_at,
+    updated_at;

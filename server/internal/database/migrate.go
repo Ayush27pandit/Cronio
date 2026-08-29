@@ -30,9 +30,9 @@ func Migrate(db *sql.DB) error {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
 
-	defer func() {
-		_, _ = m.Close()
-	}()
+	// Do not call m.Close() here — it would close the underlying *sql.DB
+	// that the caller still needs. Close only the source.
+	defer func() { _ = d.Close() }()
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("failed to run migrations: %w", err)

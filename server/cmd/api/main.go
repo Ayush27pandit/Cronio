@@ -40,9 +40,21 @@ func main() {
 
 	log.Println("Connected to the database successfully")
 
-	// Run pending database migrations.
-	if err := database.Migrate(db); err != nil {
+	// Run pending database migrations on a separate connection so the main
+	// pool is not closed by the migrate driver.
+	mdb, err := database.New(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("failed to connect for migrations: %v", err)
+	}
+	if err := database.Migrate(mdb); err != nil {
+		mdb.Close()
 		log.Fatalf("failed to run migrations: %v", err)
+	}
+	mdb.Close()
+
+	// Verify main pool is still open after migrations (migrate driver closes its own DB).
+	if err := db.PingContext(context.Background()); err != nil {
+		log.Fatalf("database closed after migrations: %v", err)
 	}
 
 	log.Println("Database migrations completed successfully")

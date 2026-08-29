@@ -353,3 +353,89 @@ func (q *Queries) ListJobs(ctx context.Context, tenantID uuid.UUID) ([]Job, erro
 	}
 	return items, nil
 }
+
+const updateJob = `-- name: UpdateJob :one
+UPDATE jobs SET
+    name = $3,
+    description = $4,
+    schedule_type = $5,
+    schedule_expr = $6,
+    timezone = $7,
+    target_url = $8,
+    next_run_at = $9,
+    enabled = $10,
+    updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING
+    id,
+    tenant_id,
+    name,
+    description,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled,
+    created_at,
+    updated_at
+`
+
+type UpdateJobParams struct {
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	Name         string         `json:"name"`
+	Description  sql.NullString `json:"description"`
+	ScheduleType string         `json:"schedule_type"`
+	ScheduleExpr string         `json:"schedule_expr"`
+	Timezone     string         `json:"timezone"`
+	TargetUrl    string         `json:"target_url"`
+	NextRunAt    sql.NullTime   `json:"next_run_at"`
+	Enabled      bool           `json:"enabled"`
+}
+
+type UpdateJobRow struct {
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	Name         string         `json:"name"`
+	Description  sql.NullString `json:"description"`
+	ScheduleType string         `json:"schedule_type"`
+	ScheduleExpr string         `json:"schedule_expr"`
+	Timezone     string         `json:"timezone"`
+	TargetUrl    string         `json:"target_url"`
+	NextRunAt    sql.NullTime   `json:"next_run_at"`
+	Enabled      bool           `json:"enabled"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) UpdateJob(ctx context.Context, arg UpdateJobParams) (UpdateJobRow, error) {
+	row := q.db.QueryRowContext(ctx, updateJob,
+		arg.ID,
+		arg.TenantID,
+		arg.Name,
+		arg.Description,
+		arg.ScheduleType,
+		arg.ScheduleExpr,
+		arg.Timezone,
+		arg.TargetUrl,
+		arg.NextRunAt,
+		arg.Enabled,
+	)
+	var i UpdateJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Description,
+		&i.ScheduleType,
+		&i.ScheduleExpr,
+		&i.Timezone,
+		&i.TargetUrl,
+		&i.NextRunAt,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

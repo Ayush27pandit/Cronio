@@ -105,6 +105,150 @@ func (s *Service) List(ctx context.Context, tenantID TenantID) ([]db.Job, error)
 	return q.ListJobs(ctx, tenantID.UUID())
 }
 
+// UpdateInput holds optional fields for PATCH. Nil means no change.
+type UpdateInput struct {
+	Name        *string
+	Description *string
+	Enabled     *bool
+	Schedule    *Schedule
+	TargetURL   *string
+}
+
+// Update patches a job for the tenant. Nil fields are left unchanged.
+// If Schedule is provided it recomputes next_run_at and enabled via NextRun.
+// If Enabled is provided it toggles the flag; re-enabling a job without a next
+// run recomputes it from the current schedule.
+func (s *Service) Update(ctx context.Context, tenantID TenantID, jobID uuid.UUID, in UpdateInput) (db.UpdateJobRow, error) {
+	if tenantID.IsZero() {
+		return db.UpdateJobRow{}, fmt.Errorf("tenant_id is required")
+	}
+	// Load current job for tenant check and defaults.
+	cur, err := s.Get(ctx, tenantID, jobID)
+	if err != nil {
+		return db.UpdateJobRow{}, err
+	}
+
+	newName := cur.Name
+	newDesc := cur.Description
+	newSchedType := cur.ScheduleType
+	newSchedExpr := cur.ScheduleExpr
+	newTz := cur.Timezone
+	newTargetURL := cur.TargetUrl
+	newNext := cur.NextRunAt
+	newEnabled := cur.Enabled
+
+	if in.Name != nil {
+		n := strings.TrimSpace(*in.Name)
+		if n == "" {
+			return db.UpdateJobRow{}, fmt.Errorf("name is required")
+		}
+		if len(n) > 200 {
+			return db.UpdateJobRow{}, fmt.Errorf("name too long (max 200)")
+		}
+		newName = n
+	}
+	if in.Description != nil {
+		d := strings.TrimSpace(*in.Description)
+		if d == "" {
+			newDesc = sql.NullString{Valid: false}
+		} else {
+			newDesc = sql.NullString{String: d, Valid: true}
+		}
+	}
+	if in.TargetURL != nil {
+		tu := strings.TrimSpace(*in.TargetURL)
+		if tu == "" {
+			return db.UpdateJobRow{}, fmt.Errorf("target_url is required")
+		}
+		if err := validateTargetURL(tu); err != nil {
+			return db.UpdateJobRow{}, err
+		}
+		newTargetURL = tu
+	}
+
+	scheduleChanged := false
+	if in.Schedule != nil {
+		if in.Schedule.Kind() == "" {
+			return db.UpdateJobRow{}, fmt.Errorf("schedule is required")
+		}
+		newSchedType = in.Schedule.Kind()
+		newSchedExpr = in.Schedule.Expr()
+		newTz = in.Schedule.Timezone()
+		scheduleChanged = true
+	}
+
+	// Recompute next_run_at if schedule changed or we are re-enabling.
+	needsRecompute := scheduleChanged
+	if in.Enabled != nil && *in.Enabled && !newEnabled {
+		needsRecompute = true
+	}
+	if in.Enabled != nil && !*in.Enabled {
+		newEnabled = false
+		newNext = sql.NullTime{Valid: false}
+		needsRecompute = false
+	} else if needsRecompute {
+		// Use the new schedule to compute next.
+		var sVal Schedule
+		if in.Schedule != nil {
+			sVal = *in.Schedule
+		} else {
+			sVal, err = scheduleFromRow(newSchedType, newSchedExpr, newTz)
+			if err != nil {
+				return db.UpdateJobRow{}, err
+			}
+		}
+		next, enabled, err := sVal.NextRun(time.Now().UTC())
+		if err != nil {
+			return db.UpdateJobRow{}, fmt.Errorf("schedule next_run: %w", err)
+		}
+		if enabled {
+			newNext = sql.NullTime{Time: next, Valid: true}
+			newEnabled = true
+		} else {
+			newNext = sql.NullTime{Valid: false}
+			newEnabled = false
+		}
+	} else if in.Enabled != nil {
+		newEnabled = *in.Enabled
+		if newEnabled && !newNext.Valid {
+			// Enabling a job that had no next run (once past or disabled).
+			sVal, err := scheduleFromRow(newSchedType, newSchedExpr, newTz)
+			if err != nil {
+				return db.UpdateJobRow{}, err
+			}
+			next, enabled, err := sVal.NextRun(time.Now().UTC())
+			if err != nil {
+				return db.UpdateJobRow{}, fmt.Errorf("schedule next_run: %w", err)
+			}
+			if enabled {
+				newNext = sql.NullTime{Time: next, Valid: true}
+				newEnabled = true
+			} else {
+				newNext = sql.NullTime{Valid: false}
+				newEnabled = false
+			}
+		}
+	}
+
+	q := db.New(s.db)
+	row, err := q.UpdateJob(ctx, db.UpdateJobParams{
+		ID:           jobID,
+		TenantID:     tenantID.UUID(),
+		Name:         newName,
+		Description:  newDesc,
+		ScheduleType: newSchedType,
+		ScheduleExpr: newSchedExpr,
+		Timezone:     newTz,
+		TargetUrl:    newTargetURL,
+		NextRunAt:    newNext,
+		Enabled:      newEnabled,
+	})
+	if err != nil {
+		return db.UpdateJobRow{}, fmt.Errorf("update job: %w", err)
+	}
+	return row, nil
+}
+
 // validateCreateInput checks the minimal fields for Create.
 // It is a helper so Create stays focused on next_run_at and the INSERT.
 // Checks in order: tenant is present, name is present and <=200, target URL

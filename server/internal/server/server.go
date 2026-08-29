@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -36,6 +37,7 @@ func New(port string, logger *slog.Logger, db *sql.DB) *http.Server {
 			r.Post("/jobs", handleCreateJob(jsvc, logger))
 			r.Get("/jobs", handleListJobs(jsvc, logger))
 			r.Get("/jobs/{id}", handleGetJob(jsvc, logger))
+			r.Patch("/jobs/{id}", handlePatchJob(jsvc, logger))
 		})
 	}
 
@@ -212,6 +214,110 @@ func handleGetJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			"created_at":  j.CreatedAt.Format(time.RFC3339),
 		})
 		_ = logger // avoid unused if logger not needed
+	}
+}
+
+type patchJobRequest struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	Enabled     *bool   `json:"enabled"`
+	Schedule    *struct {
+		Type       string `json:"type"`
+		Expression string `json:"expression"`
+		Timezone   string `json:"timezone"`
+	} `json:"schedule"`
+	Target *struct {
+		URL *string `json:"url"`
+	} `json:"target"`
+}
+
+func handlePatchJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := middleware.GetTenantID(r.Context())
+		idStr := chi.URLParam(r, "id")
+		jobID, err := uuid.Parse(idStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_id", "job id must be UUID")
+			return
+		}
+		var req patchJobRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "invalid JSON body")
+			return
+		}
+		if req.Name == nil && req.Description == nil && req.Enabled == nil && req.Schedule == nil && req.Target == nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
+			return
+		}
+
+		var sched *job.Schedule
+		if req.Schedule != nil {
+			if req.Schedule.Type == "" || req.Schedule.Expression == "" {
+				writeError(w, http.StatusBadRequest, "invalid_schedule", "schedule.type and schedule.expression are required")
+				return
+			}
+			var s job.Schedule
+			switch req.Schedule.Type {
+			case job.ScheduleCron:
+				s, err = job.NewCronSchedule(req.Schedule.Expression, req.Schedule.Timezone)
+			case job.ScheduleInterval:
+				s, err = job.NewIntervalSchedule(req.Schedule.Expression)
+			case job.ScheduleOnce:
+				s, err = job.NewOnceSchedule(req.Schedule.Expression)
+			default:
+				writeError(w, http.StatusBadRequest, "invalid_schedule", "schedule.type must be cron, interval, or once")
+				return
+			}
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid_schedule", err.Error())
+				return
+			}
+			sched = &s
+		}
+
+		var targetURL *string
+		if req.Target != nil && req.Target.URL != nil {
+			tu := *req.Target.URL
+			if tu == "" {
+				writeError(w, http.StatusBadRequest, "invalid_target", "target.url is required")
+				return
+			}
+			targetURL = &tu
+		}
+
+		row, err := svc.Update(r.Context(), job.TenantID(tenantID), jobID, job.UpdateInput{
+			Name:        req.Name,
+			Description: req.Description,
+			Enabled:     req.Enabled,
+			Schedule:    sched,
+			TargetURL:   targetURL,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "not_found", "job not found")
+				return
+			}
+			logger.Error("patch job failed", "error", err, "tenant", tenantID.String(), "job", jobID.String())
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+
+		var nra *string
+		if row.NextRunAt.Valid {
+			s := row.NextRunAt.Time.Format(time.RFC3339)
+			nra = &s
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":          row.ID.String(),
+			"tenant_id":   row.TenantID.String(),
+			"name":        row.Name,
+			"schedule":    map[string]string{"type": row.ScheduleType, "expression": row.ScheduleExpr, "timezone": row.Timezone},
+			"target":      map[string]string{"url": row.TargetUrl},
+			"next_run_at": nra,
+			"enabled":     row.Enabled,
+			"updated_at":  row.UpdatedAt.Format(time.RFC3339),
+		})
 	}
 }
 
