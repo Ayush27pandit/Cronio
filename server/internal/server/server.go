@@ -28,6 +28,12 @@ func New(port string, logger *slog.Logger, db *sql.DB) *http.Server {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Static UI for quick visualisation. Keep at root so http://localhost:8080/ shows it.
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "static/index.html")
+	})
+
 	if db != nil {
 		jsvc := job.New(db)
 
@@ -38,6 +44,7 @@ func New(port string, logger *slog.Logger, db *sql.DB) *http.Server {
 			r.Get("/jobs", handleListJobs(jsvc, logger))
 			r.Get("/jobs/{id}", handleGetJob(jsvc, logger))
 			r.Patch("/jobs/{id}", handlePatchJob(jsvc, logger))
+			r.Get("/jobs/{id}/executions", handleListExecutions(jsvc, logger))
 		})
 	}
 
@@ -318,6 +325,45 @@ func handlePatchJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			"enabled":     row.Enabled,
 			"updated_at":  row.UpdatedAt.Format(time.RFC3339),
 		})
+	}
+}
+
+func handleListExecutions(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := middleware.GetTenantID(r.Context())
+		idStr := chi.URLParam(r, "id")
+		jobID, err := uuid.Parse(idStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_id", "job id must be UUID")
+			return
+		}
+		rows, err := svc.ListExecutions(r.Context(), job.TenantID(tenantID), jobID, 20)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "not_found", "job not found")
+				return
+			}
+			logger.Error("list executions failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to list executions")
+			return
+		}
+		type outExec struct {
+			ID          string `json:"id"`
+			Status      string `json:"status"`
+			ScheduledAt string `json:"scheduled_at"`
+			CreatedAt   string `json:"created_at"`
+		}
+		out := make([]outExec, 0, len(rows))
+		for _, e := range rows {
+			out = append(out, outExec{
+				ID:          e.ID.String(),
+				Status:      e.Status,
+				ScheduledAt: e.ScheduledAt.Format(time.RFC3339),
+				CreatedAt:   e.CreatedAt.Format(time.RFC3339),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"executions": out})
 	}
 }
 

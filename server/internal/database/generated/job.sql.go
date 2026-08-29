@@ -277,6 +277,65 @@ func (q *Queries) GetJobForTenant(ctx context.Context, arg GetJobForTenantParams
 	return i, err
 }
 
+const listExecutionsForJob = `-- name: ListExecutionsForJob :many
+SELECT
+    id,
+    job_id,
+    tenant_id,
+    status,
+    scheduled_at,
+    created_at
+FROM executions
+WHERE job_id = $1 AND tenant_id = $2
+ORDER BY created_at DESC
+LIMIT $3
+`
+
+type ListExecutionsForJobParams struct {
+	JobID    uuid.UUID `json:"job_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Limit    int32     `json:"limit"`
+}
+
+type ListExecutionsForJobRow struct {
+	ID          uuid.UUID `json:"id"`
+	JobID       uuid.UUID `json:"job_id"`
+	TenantID    uuid.UUID `json:"tenant_id"`
+	Status      string    `json:"status"`
+	ScheduledAt time.Time `json:"scheduled_at"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (q *Queries) ListExecutionsForJob(ctx context.Context, arg ListExecutionsForJobParams) ([]ListExecutionsForJobRow, error) {
+	rows, err := q.db.QueryContext(ctx, listExecutionsForJob, arg.JobID, arg.TenantID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExecutionsForJobRow{}
+	for rows.Next() {
+		var i ListExecutionsForJobRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.TenantID,
+			&i.Status,
+			&i.ScheduledAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listJobs = `-- name: ListJobs :many
 SELECT
     id,

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cronio — jobs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style> body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; } </style>
+</head>
+<body class="bg-stone-50 text-slate-900">
+  <div class="max-w-5xl mx-auto px-6 py-8">
+    <header class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Cronio <span class="text-slate-400 font-normal">— execution layer for time</span></h1>
+        <p class="text-sm text-slate-500 mt-1">Create a job, watch the ticker turn it into executions. All tenant scoped.</p>
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <a href="/health" target="_blank" class="px-3 py-1.5 rounded-full bg-white border border-slate-200">health</a>
+        <a href="/v1/jobs" id="apiLink" class="px-3 py-1.5 rounded-full bg-slate-900 text-white">API</a>
+      </div>
+    </header>
+
+    <section class="mt-6 rounded-xl bg-white border border-slate-200 p-4 flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[280px]">
+        <label class="text-xs uppercase tracking-wide text-slate-500">X-Tenant-ID</label>
+        <input id="tenant" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="11111111-1111-1111-1111-111111111111" value="11111111-1111-1111-1111-111111111111" />
+        <p class="text-xs text-slate-500 mt-1">Pick any UUID and reuse it. Different UUIDs see different jobs.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="genTenant" class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm">new tenant</button>
+        <button id="refresh" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm">refresh</button>
+      </div>
+      <p id="status" class="w-full text-xs text-slate-500"></p>
+    </section>
+
+    <div class="mt-6 grid md:grid-cols-5 gap-6">
+      <section class="md:col-span-2 rounded-xl bg-white border border-slate-200 p-5">
+        <h2 class="font-medium">Create job</h2>
+        <p class="text-xs text-slate-500 mt-1">Schedule is typed. Choose cron, interval, or once.</p>
+        <form id="createForm" class="mt-4 space-y-3">
+          <div>
+            <label class="text-xs uppercase tracking-wide text-slate-500">name</label>
+            <input name="name" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="daily report" required />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs uppercase tracking-wide text-slate-500">schedule type</label>
+              <select name="stype" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="cron">cron</option>
+                <option value="interval">interval</option>
+                <option value="once">once</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs uppercase tracking-wide text-slate-500">timezone (cron only)</label>
+              <input name="tz" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Asia/Kolkata" value="UTC" />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs uppercase tracking-wide text-slate-500">expression</label>
+            <input name="expr" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="0 9 * * *  or  15m  or  2026-09-01T09:00:00Z" required />
+            <p class="text-xs text-slate-500 mt-1">cron: 5-field, interval: 15m/1h, once: RFC3339</p>
+          </div>
+          <div>
+            <label class="text-xs uppercase tracking-wide text-slate-500">target url</label>
+            <input name="url" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="https://example.com/reports" required />
+          </div>
+          <button class="w-full mt-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium">create</button>
+          <p id="createMsg" class="text-xs text-slate-600"></p>
+        </form>
+      </section>
+
+      <section class="md:col-span-3 rounded-xl bg-white border border-slate-200 p-5">
+        <div class="flex items-center justify-between">
+          <h2 class="font-medium">Jobs for this tenant</h2>
+          <span id="jobCount" class="text-xs px-2 py-1 rounded-full bg-slate-100 border border-slate-200">0</span>
+        </div>
+        <div id="jobs" class="mt-4 space-y-3"></div>
+        <p class="text-xs text-slate-500 mt-4">Ticker polls every second. Create an interval 5s job and watch executions appear below.</p>
+      </section>
+    </div>
+
+    <section id="detail" class="mt-6 rounded-xl bg-white border border-slate-200 p-5 hidden">
+      <div class="flex items-center justify-between">
+        <h3 class="font-medium">Job detail <span id="detailId" class="font-mono text-xs text-slate-500"></span></h3>
+        <div class="flex gap-2">
+          <button id="toggleEnabled" class="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs">toggle enabled</button>
+          <button id="closeDetail" class="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs">close</button>
+        </div>
+      </div>
+      <div id="detailBody" class="mt-3 text-sm"></div>
+      <h4 class="mt-4 text-xs uppercase tracking-wide text-slate-500">Recent executions</h4>
+      <div id="execs" class="mt-2 space-y-2"></div>
+    </section>
+
+    <footer class="mt-8 text-center text-xs text-slate-400">
+      Cronio • ticker 1s • Postgres is source of truth • docs at /docs
+    </footer>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const tenantInput = $('#tenant');
+const statusEl = $('#status');
+const jobsEl = $('#jobs');
+const jobCount = $('#jobCount');
+const detail = $('#detail');
+const detailId = $('#detailId');
+const detailBody = $('#detailBody');
+const execsEl = $('#execs');
+let selectedId = null;
+let selectedEnabled = true;
+
+function tenant() { return tenantInput.value.trim(); }
+function headers() { return { 'Content-Type': 'application/json', 'X-Tenant-ID': tenant() }; }
+function setStatus(msg, ok=true) { statusEl.textContent = msg; statusEl.className = ok ? 'w-full text-xs text-emerald-600' : 'w-full text-xs text-red-600'; }
+
+$('#genTenant').onclick = () => {
+  const id = (crypto.randomUUID && crypto.randomUUID()) || '11111111-1111-1111-1111-111111111111';
+  tenantInput.value = id;
+  loadJobs();
+};
+$('#refresh').onclick = loadJobs;
+$('#closeDetail').onclick = () => { detail.classList.add('hidden'); selectedId = null; };
+
+$('#createForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = {
+    name: fd.get('name'),
+    schedule: { type: fd.get('stype'), expression: fd.get('expr'), timezone: fd.get('tz') },
+    target: { url: fd.get('url') }
+  };
+  $('#createMsg').textContent = 'creating…';
+  try {
+    const res = await fetch('/v1/jobs', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || res.statusText);
+    $('#createMsg').textContent = 'created ' + data.id;
+    e.target.reset();
+    // keep stype/tz defaults
+    e.target.stype.value = 'cron';
+    e.target.tz.value = 'UTC';
+    loadJobs();
+  } catch (err) {
+    $('#createMsg').textContent = 'error: ' + err.message;
+  }
+};
+
+async function loadJobs() {
+  if (!tenant()) { setStatus('set a tenant UUID first', false); return; }
+  setStatus('loading…');
+  try {
+    const res = await fetch('/v1/jobs', { headers: { 'X-Tenant-ID': tenant() } });
+    if (!res.ok) throw new Error('' + res.status);
+    const data = await res.json();
+    const jobs = data.jobs || [];
+    jobCount.textContent = jobs.length;
+    jobsEl.innerHTML = jobs.map(j => `
+      <div class="rounded-lg border ${j.enabled ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50'} p-3 flex justify-between gap-3">
+        <div class="min-w-0">
+          <p class="font-medium text-sm truncate">${esc(j.name)} <span class="font-mono text-xs text-slate-500">${j.id.slice(0,8)}</span></p>
+          <p class="font-mono text-xs text-slate-600 mt-1">${esc(j.schedule.type)} ${esc(j.schedule.expression)} ${esc(j.schedule.timezone)} → <span class="text-slate-900">${j.next_run_at ? new Date(j.next_run_at).toLocaleString() : 'paused'}</span></p>
+          <p class="font-mono text-xs text-slate-500 truncate">${esc(j.target.url)}</p>
+        </div>
+        <div class="flex flex-col gap-2 shrink-0">
+          <span class="text-xs px-2 py-1 rounded-full ${j.enabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}">${j.enabled ? 'enabled' : 'disabled'}</span>
+          <button onclick="openDetail('${j.id}')" class="px-3 py-1 rounded-lg bg-white border border-slate-300 text-xs">open</button>
+        </div>
+      </div>
+    `).join('') || '<p class="text-sm text-slate-500">no jobs for this tenant yet. Create one on the left.</p>';
+    setStatus('loaded ' + jobs.length + ' jobs for ' + tenant().slice(0,8), true);
+    if (selectedId) openDetail(selectedId, true);
+  } catch (err) {
+    setStatus('load failed: ' + err.message, false);
+  }
+}
+
+async function openDetail(id, silent) {
+  selectedId = id;
+  detail.classList.remove('hidden');
+  detailId.textContent = id;
+  try {
+    const res = await fetch('/v1/jobs/' + id, { headers: { 'X-Tenant-ID': tenant() } });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error?.message || res.statusText);
+    selectedEnabled = j.enabled;
+    detailBody.innerHTML = `
+      <p><span class="text-slate-500">name</span> ${esc(j.name)}</p>
+      <p class="font-mono text-xs mt-1">schedule ${esc(j.schedule.type)} ${esc(j.schedule.expression)} ${esc(j.schedule.timezone)}</p>
+      <p class="font-mono text-xs">target ${esc(j.target.url)}</p>
+      <p class="mt-1"><span class="text-slate-500">next_run_at</span> ${j.next_run_at ? new Date(j.next_run_at).toLocaleString() : '—'} &nbsp; <span class="text-slate-500">enabled</span> ${j.enabled}</p>
+    `;
+    loadExecs(id);
+  } catch (err) {
+    if (!silent) setStatus('detail failed: ' + err.message, false);
+  }
+}
+
+async function loadExecs(jobId) {
+  execsEl.innerHTML = '<p class="text-xs text-slate-500">loading…</p>';
+  try {
+    const res = await fetch('/v1/jobs/' + jobId + '/executions?limit=10', { headers: { 'X-Tenant-ID': tenant() } });
+    const data = await res.json();
+    const rows = data.executions || [];
+    if (rows.length === 0) { execsEl.innerHTML = '<p class="text-xs text-slate-500">no executions yet. Ticker will create one when next_run_at is due.</p>'; return; }
+    execsEl.innerHTML = rows.map(e => `
+      <div class="rounded-lg border border-slate-200 bg-stone-50 px-3 py-2 flex justify-between items-center">
+        <span class="font-mono text-xs">${new Date(e.scheduled_at).toLocaleString()}</span>
+        <span class="text-xs px-2 py-1 rounded-full ${e.status === 'READY' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}">${e.status}</span>
+      </div>
+    `).join('');
+  } catch (err) {
+    execsEl.innerHTML = '<p class="text-xs text-red-600">failed: ' + esc(err.message) + '</p>';
+  }
+}
+
+$('#toggleEnabled').onclick = async () => {
+  if (!selectedId) return;
+  try {
+    const res = await fetch('/v1/jobs/' + selectedId, {
+      method: 'PATCH',
+      headers: headers(),
+      body: JSON.stringify({ enabled: !selectedEnabled })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || res.statusText);
+    loadJobs();
+  } catch (err) {
+    setStatus('toggle failed: ' + err.message, false);
+  }
+};
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// auto refresh every 2s
+setInterval(() => { if (tenant() && !document.hidden) loadJobs(); }, 2000);
+loadJobs();
+</script>
+</body>
+</html>

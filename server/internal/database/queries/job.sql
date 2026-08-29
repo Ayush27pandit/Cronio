@@ -151,3 +151,16 @@ RETURNING
     enabled,
     created_at,
     updated_at;
+
+-- name: ListExecutionsForJob :many
+SELECT
+    id,
+    job_id,
+    tenant_id,
+    status,
+    scheduled_at,
+    created_at
+FROM executions
+WHERE job_id = $1 AND tenant_id = $2
+ORDER BY created_at DESC
+LIMIT $3;

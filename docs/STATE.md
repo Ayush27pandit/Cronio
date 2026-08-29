@@ -1,0 +1,65 @@
+# Cronio — current state for future sessions
+
+This is the source of truth for where the product stands. `AGENTS.md` and `CONTEXT.md` are local-only and ignored by git. This file is tracked so any clone can pick up the work.
+
+## What is built and working
+
+**Domain:** `CONTEXT.md` locally defines Tenant, Job, Schedule (Cron 5-field, Interval, Once), Target (http), Execution, Attempt, Lease, Retry/Concurrency/Misfire policies. The code matches those names.
+
+**Deep Job seam:** `server/internal/job/` owns the seam.
+* `schedule.go` — typed `Schedule` with `NewCronSchedule`, `NewIntervalSchedule`, `NewOnceSchedule`, `NextRun` pure and UTC.
+* `tenant.go` — distinct `TenantID` type, explicit param.
+* `service.go` — `ScheduleDue` does `BEGIN; LockDueJob FOR UPDATE SKIP LOCKED tenant-scoped; CountActiveExecutions; typed Schedule rebuild; NextRun after due time; CreateExecution READY; UpdateJobNextRun` atomically.
+* `store.go` — `Create`, `Update`, `Get`, `List` tenant-scoped, `validateCreateInput` helper, SSRF guard.
+
+**API:** `server/internal/server/server.go` with `chi`, `X-Tenant-ID` header middleware, `GET /health`, `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /v1/jobs/{id}/executions` (10 recent, tenant-scoped via `job.Service.ListExecutions`). All schedule validation reuses the typed constructors, so 400s happen before the DB. Static UI at `GET /` serves `server/static/index.html`.
+
+**Scheduler ticker:** `server/internal/scheduler/ticker.go` polls `GetDueJobs 100` every second with a 5s per-tick timeout, then calls `ScheduleDue` per row. Fleet safe via `SKIP LOCKED`. Lives inside `server/cmd/api` for MVP, easy to split to `cmd/scheduler` later. Integration tests use a real Neon DB when `DB_URL` is set.
+
+**DB:** Postgres 15 on Neon, `pgcrypto`, migrations `jobs`, `executions`, `attempts`, partial index `idx_jobs_next_run where enabled`, `scheduler.sql` fixed from `schedular.sql`, generated code in `server/internal/database/generated/` is committed.
+
+**Ops fix:** `server/internal/database/migrate.go` no longer calls `m.Close()` that closed the main pool. `server/cmd/api/main.go` migrates on a throwaway `mdb` then pings the main `db` to confirm it stayed open. Verified with `go build -o /tmp/cronio && /tmp/cronio` — `POST /v1/jobs` now returns `201`.
+
+**Docs:** `Readme.md` reflects what is done vs next, `docs/architecture.md` explains deep modules and the DB, `docs/api.md` lists every endpoint with curl, `docs/STATE.md` here keeps future sessions in sync. `server/.env` holds `DB_URL` with `sslmode=require&channel_binding=require` and is loaded via `godotenv` when run from `server/`.
+
+**Frontend:** quick visual at `http://localhost:8080/` served from `server/static/index.html`. Tailwind via CDN, vanilla JS, tenant input, create form, jobs list, detail with `GET /v1/jobs/{id}/executions` (10 recent). Auto-refreshes every 2s. No build step, just `go run`.
+
+## How to run
+
+```bash
+# from server/
+go vet ./... && go test ./...   # job tests in-process, scheduler tests need DB_URL
+go build -o /tmp/cronio ./cmd/api && /tmp/cronio
+# or go run ./cmd/api (build is more reliable for background)
+
+TENANT=11111111-1111-1111-1111-111111111111
+curl -X POST http://localhost:8080/v1/jobs -H "X-Tenant-ID: $TENANT" -H "Content-Type: application/json" -d '{"name":"daily report","schedule":{"type":"cron","expression":"0 9 * * *","timezone":"Asia/Kolkata"},"target":{"url":"https://example.com/reports"}}'
+```
+
+No `DATABASE_URL`, only `DB_URL`. `lsof -ti :8080 | xargs kill -9` before a rebuild.
+
+## What is not built yet
+
+* Worker fleet that claims `READY`, sets `lease_until`, POSTs to `target_url`, writes `SUCCESS` or `FAILURE` and `attempts` with retry backoff.
+* `GET /v1/executions/{id}` for single execution detail, `DELETE` as soft disable, `retry` and `concurrency` fields in the API JSON, pagination and filtering.
+* API keys per tenant. Today it is a header you pick.
+* Scheduler as `cmd/scheduler` for independent scaling, `leases` table separate from `executions`, Prometheus metrics and the `leases` reaper.
+* Full Next.js UI in `web/`. Quick visual is done at `http://localhost:8080/`.
+
+## Future plans
+
+**Next slice, scheduler is done, so worker is the natural next.** It is the only piece that proves `fire_once` and retries end to end. After that, execution list and detail endpoints unblock the UI.
+
+**Roadmap from the product plan:**
+
+* Phase 1 MVP remainder — worker, execution list and detail, `DELETE`, Prometheus `scheduler_claimed_total` and `lease` expiry, per-tenant isolation in every query.
+* Phase 1.5 — outbox plus NATS JetStream, dispatcher, SDK workers in Go, Python, Node, encrypted `{{secret.*}}`, per-tenant and per-worker concurrency, calendar exceptions.
+* Phase 2 — event triggers, DAGs with fan-out, SAML, RBAC, audit logs, OpenTelemetry tracing, PagerDuty and Slack, multi-region.
+
+## For the next agent
+
+* Read this file plus `Readme.md`, `docs/architecture.md`, `docs/api.md` before touching code.
+* The deep seam is `server/internal/job/`. Do not leak `sql.NullTime` or raw cron strings past it.
+* `server/internal/scheduler/ticker.go` `Tick` is the test surface. Tests hit `Tick` directly, not `time.Sleep`.
+* Keep history clean. One commit per phase, `go vet` must stay green. `AGENTS.md` and `CONTEXT.md` are local-only, do not re-add them to git.
+* If you add a field, add it to the typed `Schedule` or `CreateInput` first, then to the `queries/job.sql` and `sqlc generate`, then to the handler.

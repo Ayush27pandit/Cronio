@@ -275,6 +275,29 @@ func validateCreateInput(tenantID TenantID, name string, in CreateInput) error {
 	return nil
 }
 
+// ListExecutions returns recent executions for a job, tenant-scoped.
+// It first checks the job belongs to the tenant, then lists executions.
+func (s *Service) ListExecutions(ctx context.Context, tenantID TenantID, jobID uuid.UUID, limit int32) ([]db.ListExecutionsForJobRow, error) {
+	if tenantID.IsZero() {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if _, err := s.Get(ctx, tenantID, jobID); err != nil {
+		return nil, err
+	}
+	q := db.New(s.db)
+	return q.ListExecutionsForJob(ctx, db.ListExecutionsForJobParams{
+		JobID:    jobID,
+		TenantID: tenantID.UUID(),
+		Limit:    limit,
+	})
+}
+
 // validateTargetURL checks that raw is an http or https URL with a host.
 // It blocks the metadata IP used for SSRF in MVP: 169.254.169.254.
 func validateTargetURL(raw string) error {
