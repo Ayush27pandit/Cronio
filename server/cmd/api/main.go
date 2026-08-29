@@ -13,6 +13,8 @@ import (
 
 	"github.com/Ayush27pandit/Cronio/server/internal/config"
 	"github.com/Ayush27pandit/Cronio/server/internal/database"
+	"github.com/Ayush27pandit/Cronio/server/internal/job"
+	"github.com/Ayush27pandit/Cronio/server/internal/scheduler"
 	"github.com/Ayush27pandit/Cronio/server/internal/server"
 	"github.com/joho/godotenv"
 )
@@ -67,6 +69,13 @@ func main() {
 	// Create HTTP server.
 	srv := server.New(cfg.Port, logger, db)
 
+	// Start scheduler ticker alongside the API. Same DB pool, same Job seam.
+	svc := job.New(db)
+	ticker := scheduler.NewTicker(db, svc, logger, time.Second, 100)
+	tickerCtx, tickerCancel := context.WithCancel(context.Background())
+	defer tickerCancel()
+	go ticker.Start(tickerCtx)
+
 	// Start server in a separate goroutine.
 	go func() {
 		log.Printf("Cronio server is listening on port %s", cfg.Port)
@@ -89,6 +98,7 @@ func main() {
 	<-stop
 
 	log.Println("Shutdown signal received")
+	tickerCancel()
 
 	// Give active requests time to finish.
 	ctx, cancel := context.WithTimeout(
