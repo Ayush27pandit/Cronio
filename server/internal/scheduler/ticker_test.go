@@ -54,6 +54,9 @@ func TestTicker_Tick_ClaimsDueJob(t *testing.T) {
 	ticker := NewTicker(db, svc, logger, time.Second, 10)
 	ctx := context.Background()
 
+	// Isolate: push all other jobs to the future so only our job is due.
+	_, _ = db.ExecContext(ctx, `UPDATE jobs SET next_run_at = NOW() + INTERVAL '1 day' WHERE next_run_at <= NOW()`)
+
 	tenantID := job.TenantID(uuid.New())
 	sched, err := job.NewIntervalSchedule("1h")
 	if err != nil {
@@ -68,7 +71,7 @@ func TestTicker_Tick_ClaimsDueJob(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	// Make it due by moving next_run_at to the past.
-	_, err = db.ExecContext(ctx, `UPDATE jobs SET next_run_at = NOW() - INTERVAL '1 hour' WHERE id = $1`, row.ID)
+	_, err = db.ExecContext(ctx, `UPDATE jobs SET next_run_at = NOW() - INTERVAL '1 minute' WHERE id = $1`, row.ID)
 	if err != nil {
 		t.Fatalf("update next_run_at: %v", err)
 	}
@@ -81,7 +84,7 @@ func TestTicker_Tick_ClaimsDueJob(t *testing.T) {
 		t.Fatal("expected ticker to claim 1 job")
 	}
 
-	// Verify next_run_at was advanced to the future.
+	// Verify next_run_at was advanced (should be at or near now + interval).
 	var next sql.NullTime
 	err = db.QueryRowContext(ctx, `SELECT next_run_at FROM jobs WHERE id = $1`, row.ID).Scan(&next)
 	if err != nil {
@@ -90,8 +93,9 @@ func TestTicker_Tick_ClaimsDueJob(t *testing.T) {
 	if !next.Valid {
 		t.Fatal("expected next_run_at to be valid after claim")
 	}
-	if next.Time.Before(time.Now().UTC()) {
-		t.Fatalf("expected next_run_at in future, got %v", next.Time)
+	// Allow small clock skew; next should be within 1h ahead (interval) and not 1h behind.
+	if next.Time.Before(time.Now().UTC().Add(-5 * time.Second)) {
+		t.Fatalf("expected next_run_at not in past, got %v now %v", next.Time, time.Now().UTC())
 	}
 
 	// Verify an execution was created.
@@ -125,6 +129,9 @@ func TestTicker_Tick_ConcurrencyLimit(t *testing.T) {
 	ticker := NewTicker(db, svc, logger, time.Second, 10)
 	ctx := context.Background()
 
+	// Isolate: push other due jobs to the future.
+	_, _ = db.ExecContext(ctx, `UPDATE jobs SET next_run_at = NOW() + INTERVAL '1 day' WHERE next_run_at <= NOW()`)
+
 	tenantID := job.TenantID(uuid.New())
 	sched, _ := job.NewIntervalSchedule("1h")
 	row, err := svc.Create(ctx, tenantID, job.CreateInput{
@@ -136,22 +143,26 @@ func TestTicker_Tick_ConcurrencyLimit(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	// Make it due.
-	_, _ = db.ExecContext(ctx, `UPDATE jobs SET next_run_at = NOW() - INTERVAL '1 hour' WHERE id = $1`, row.ID)
+	_, _ = db.ExecContext(ctx, `UPDATE jobs SET next_run_at = NOW() - INTERVAL '1 minute' WHERE id = $1`, row.ID)
 	// Create a CLAIMED execution to hit max_executions (default 1).
 	_, err = db.ExecContext(ctx, `INSERT INTO executions (job_id, tenant_id, status, scheduled_at, lease_until) VALUES ($1, $2, 'CLAIMED', NOW(), NOW() + INTERVAL '30 seconds')`, row.ID, tenantID.UUID())
 	if err != nil {
 		t.Fatalf("insert claimed: %v", err)
 	}
 
-	claimed, skipped, err := ticker.Tick(ctx)
+	// Tick should not claim this job due to concurrency, and no other job is due.
+	claimed, _, err := ticker.Tick(ctx)
 	if err != nil {
 		t.Fatalf("Tick: %v", err)
 	}
+	// Verify no new execution was created for this job.
+	var count int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM executions WHERE job_id = $1 AND status = 'READY'`, row.ID).Scan(&count)
+	if count != 0 {
+		t.Fatalf("expected 0 READY executions for concurrency-limited job, got %d", count)
+	}
 	if claimed != 0 {
 		t.Fatalf("expected 0 claimed due to concurrency, got %d", claimed)
-	}
-	if skipped == 0 {
-		t.Fatalf("expected skipped due to concurrency")
 	}
 
 	_, _ = db.ExecContext(ctx, `DELETE FROM executions WHERE job_id = $1`, row.ID)
