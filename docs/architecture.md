@@ -184,6 +184,118 @@ worker A                     Postgres                   worker B
 
 Reap runs at the start of every worker Tick and resets any `CLAIMED` or `RUNNING` where `lease_until < NOW()` back to `READY`. That is how a dead worker releases its claim.
 
+## Concurrency, races, and how we handle them
+
+This is the core of Cronio. Every race is decided by Postgres, not by in-memory locks.
+
+### Scheduler concurrency: one job, many schedulers, one execution
+
+`concurrency_max_executions` is 1 by default. Scheduler checks it inside the same `LockDueJob` transaction, so the check and the create are atomic.
+
+```mermaid
+sequenceDiagram
+    participant SA as scheduler A
+    participant DB as Postgres
+    participant SB as scheduler B
+    participant JC as job 1
+
+    SA->>DB: BEGIN
+    SA->>DB: LockDueJob 1 SKIP LOCKED where tenant and next_run_at <= NOW()
+    DB-->>SA: row locked
+    SA->>DB: CountActiveExecutions where status in (CLAIMED,RUNNING)
+    DB-->>SA: 0
+    SB->>DB: BEGIN
+    SB->>DB: LockDueJob 1 SKIP LOCKED
+    DB-->>SB: 0 rows, skipped, row locked
+    SB->>DB: ROLLBACK
+    SA->>DB: CreateExecution READY
+    SA->>DB: UpdateJobNextRun
+    SA->>DB: COMMIT
+    Note over DB,JC: second scheduler sees nothing, at-least-once holds
+```
+
+Tenant isolation is in the lock: `WHERE id = $1 AND tenant_id = $2`. A wrong tenant never locks the row.
+
+```mermaid
+flowchart LR
+    A[GetDueJobs 100 where enabled and next_run_at <= NOW] --> B{For each job}
+    B --> C[LockDueJob id + tenant SKIP LOCKED]
+    C --> D{row returned?}
+    D -- no --> E[skip, another scheduler holds it]
+    D -- yes --> F[CountActive CLAIMED/RUNNING]
+    F --> G{active >= max?}
+    G -- yes --> H[return ErrConcurrencyLimited, skip]
+    G -- no --> I[CreateExecution READY]
+    I --> J[UpdateJobNextRun]
+```
+
+### Worker concurrency: many workers, one READY, one claim
+
+Worker has no long transaction. It uses an atomic `UPDATE WHERE status=READY` to claim. Only one worker gets the row.
+
+```mermaid
+sequenceDiagram
+    participant WA as worker A
+    participant DB as Postgres
+    participant WB as worker B
+    participant E as execution 42 READY
+
+    WA->>DB: GetReadyExecutions 10 where status READY and scheduled_at <= NOW()
+    DB-->>WA: [42,43]
+    WB->>DB: GetReadyExecutions 10
+    DB-->>WB: [42,43] same list, stale read is ok
+    WA->>DB: TryClaimExecution 42 WHERE status READY
+    DB-->>WA: row, status CLAIMED, claim_token abc, lease_until +30s
+    WA->>DB: MarkRunning 42 where claim_token abc
+    DB-->>WA: ok
+    WB->>DB: TryClaimExecution 42 WHERE status READY
+    DB-->>WB: 0 rows, ErrNoRows, already CLAIMED
+    WB->>DB: TryClaimExecution 43 WHERE status READY
+    DB-->>WB: row, CLAIMED
+```
+
+Lease protects against a dead worker between `CLAIMED` and `RUNNING` finishing the HTTP call. No heartbeat yet for MVP, but the 30s lease is enough because `doHTTP` timeout is 30s. If the worker dies, `ReapExpiredLeases` runs at the start of every Tick:
+
+```mermaid
+flowchart TD
+    R[ReapExpiredLeases every Tick] --> Q{status in CLAIMED,RUNNING and lease_until < NOW?}
+    Q -- yes --> S[UPDATE to READY, clear claim_token, lease_until, worker_id]
+    Q -- no --> T[leave]
+    S --> U[Next GetReadyExecutions picks it, new worker claims]
+```
+
+### Per-job concurrency vs global concurrency
+
+Scheduler checks per-job active executions. Workers do not check per-job, they just claim whatever is READY. This split is intentional: scheduler holds the row for less than 1ms, worker holds the lease for seconds. If we checked concurrency in worker, we would need to hold a lock for seconds and kill throughput.
+
+Current table for a job with `concurrency_max_executions = 2`:
+
+```
+time 0: job next_run_at due, scheduler creates exec 1 READY
+time 1: scheduler creates exec 2 READY, CountActive is 0, both READY
+time 2: worker claims exec 1, status CLAIMED, CountActive 1
+time 3: worker claims exec 2, status CLAIMED, CountActive 2
+time 4: scheduler tries to create exec 3, CountActive 2 >= max 2, returns limited, skips
+time 30: worker finishes exec 1 SUCCESS, CountActive drops to 1, scheduler can create again
+```
+
+### Retry race: one execution, many attempts
+
+Retry does not create a new execution. It re-queues the same row. That avoids a race where scheduler advances `next_run_at` and worker creates a new execution at the same time.
+
+```mermaid
+stateDiagram-v2
+    [*] --> READY
+    READY --> CLAIMED: TryClaim
+    CLAIMED --> RUNNING: MarkRunning
+    RUNNING --> SUCCESS: 2xx
+    RUNNING --> FAILURE: non-2xx or timeout and attempts exhausted
+    RUNNING --> READY: non-2xx and retry left, scheduled_at = NOW() + backoff, attempt_count+1
+    READY --> CLAIMED: next Tick picks future scheduled_at when due
+```
+
+No new `jobs.next_run_at` is written on retry. That keeps the scheduler cursor clean.
+
 ## Scaling and failure
 
 Run one API and two schedulers and two workers in one binary for MVP, or split to `cmd/api`, `cmd/scheduler`, `cmd/worker` later with same DB pool. Both schedulers poll `GetDueJobs` every second, `SKIP LOCKED` gives different rows. Workers poll `GetReadyExecutions` every second where `scheduled_at <= NOW()`, claim with `status READY` check. Kill a scheduler, the other picks up within a tick. Kill a worker holding `CLAIMED`, its `lease_until` expires after 30 seconds and `ReapExpiredLeases` resets it to `READY` so another worker claims it. Retries use exponential backoff in `worker.NextDelay`, capped at `retry_max_delay_seconds`.
