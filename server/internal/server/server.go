@@ -44,7 +44,9 @@ func New(port string, logger *slog.Logger, db *sql.DB) *http.Server {
 			r.Get("/jobs", handleListJobs(jsvc, logger))
 			r.Get("/jobs/{id}", handleGetJob(jsvc, logger))
 			r.Patch("/jobs/{id}", handlePatchJob(jsvc, logger))
+			r.Delete("/jobs/{id}", handleDeleteJob(jsvc, logger))
 			r.Get("/jobs/{id}/executions", handleListExecutions(jsvc, logger))
+			r.Get("/executions/{id}", handleGetExecution(jsvc, logger))
 		})
 	}
 
@@ -364,6 +366,156 @@ func handleListExecutions(svc *job.Service, logger *slog.Logger) http.HandlerFun
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"executions": out})
+	}
+}
+
+func handleGetExecution(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := middleware.GetTenantID(r.Context())
+		if tenantID == uuid.Nil {
+			writeError(w, http.StatusBadRequest, "missing_tenant", "X-Tenant-ID is required")
+			return
+		}
+		idStr := chi.URLParam(r, "id")
+		execID, err := uuid.Parse(idStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_id", "execution id must be UUID")
+			return
+		}
+		detail, err := svc.GetExecution(r.Context(), job.TenantID(tenantID), execID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "not_found", "execution not found")
+				return
+			}
+			logger.Error("get execution failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to get execution")
+			return
+		}
+		type outAttempt struct {
+			ID                 string  `json:"id"`
+			AttemptNumber      int32   `json:"attempt_number"`
+			Status             string  `json:"status"`
+			StartedAt          *string `json:"started_at"`
+			FinishedAt         *string `json:"finished_at"`
+			ResponseStatusCode *int32  `json:"response_status_code"`
+			ResponseBody       *string `json:"response_body"`
+			ErrorMessage       *string `json:"error_message"`
+		}
+		atts := make([]outAttempt, 0, len(detail.Attempts))
+		for _, a := range detail.Attempts {
+			var started, finished *string
+			if a.StartedAt.Valid {
+				s := a.StartedAt.Time.Format(time.RFC3339)
+				started = &s
+			}
+			if a.FinishedAt.Valid {
+				s := a.FinishedAt.Time.Format(time.RFC3339)
+				finished = &s
+			}
+			var code *int32
+			if a.ResponseStatusCode.Valid {
+				c := a.ResponseStatusCode.Int32
+				code = &c
+			}
+			var body *string
+			if a.ResponseBody.Valid {
+				b := a.ResponseBody.String
+				body = &b
+			}
+			var em *string
+			if a.ErrorMessage.Valid {
+				e := a.ErrorMessage.String
+				em = &e
+			}
+			atts = append(atts, outAttempt{
+				ID:                 a.ID.String(),
+				AttemptNumber:      a.AttemptNumber,
+				Status:             a.Status,
+				StartedAt:          started,
+				FinishedAt:         finished,
+				ResponseStatusCode: code,
+				ResponseBody:       body,
+				ErrorMessage:       em,
+			})
+		}
+		var claimedAt, startedAt, finishedAt, leaseUntil *string
+		if detail.Execution.ClaimedAt.Valid {
+			s := detail.Execution.ClaimedAt.Time.Format(time.RFC3339)
+			claimedAt = &s
+		}
+		if detail.Execution.StartedAt.Valid {
+			s := detail.Execution.StartedAt.Time.Format(time.RFC3339)
+			startedAt = &s
+		}
+		if detail.Execution.FinishedAt.Valid {
+			s := detail.Execution.FinishedAt.Time.Format(time.RFC3339)
+			finishedAt = &s
+		}
+		if detail.Execution.LeaseUntil.Valid {
+			s := detail.Execution.LeaseUntil.Time.Format(time.RFC3339)
+			leaseUntil = &s
+		}
+		var resultCode *int32
+		if detail.Execution.ResultStatusCode.Valid {
+			c := detail.Execution.ResultStatusCode.Int32
+			resultCode = &c
+		}
+		var resultBody, resultError *string
+		if detail.Execution.ResultBody.Valid {
+			b := detail.Execution.ResultBody.String
+			resultBody = &b
+		}
+		if detail.Execution.ResultError.Valid {
+			e := detail.Execution.ResultError.String
+			resultError = &e
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":                 detail.Execution.ID.String(),
+			"job_id":             detail.Execution.JobID.String(),
+			"job_name":           detail.Execution.JobName,
+			"tenant_id":          detail.Execution.TenantID.String(),
+			"status":             detail.Execution.Status,
+			"scheduled_at":       detail.Execution.ScheduledAt.Format(time.RFC3339),
+			"claimed_at":         claimedAt,
+			"started_at":         startedAt,
+			"finished_at":        finishedAt,
+			"lease_until":        leaseUntil,
+			"attempt_count":      detail.Execution.AttemptCount,
+			"result_status_code": resultCode,
+			"result_body":        resultBody,
+			"result_error":       resultError,
+			"target":             map[string]string{"url": detail.Execution.TargetUrl},
+			"created_at":         detail.Execution.CreatedAt.Format(time.RFC3339),
+			"attempts":           atts,
+		})
+	}
+}
+
+func handleDeleteJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := middleware.GetTenantID(r.Context())
+		if tenantID == uuid.Nil {
+			writeError(w, http.StatusBadRequest, "missing_tenant", "X-Tenant-ID is required")
+			return
+		}
+		idStr := chi.URLParam(r, "id")
+		jobID, err := uuid.Parse(idStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_id", "job id must be UUID")
+			return
+		}
+		if err := svc.DeleteJob(r.Context(), job.TenantID(tenantID), jobID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "not_found", "job not found")
+				return
+			}
+			logger.Error("delete job failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to delete job")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

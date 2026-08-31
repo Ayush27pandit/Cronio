@@ -95,3 +95,49 @@ func TestPatchJob_NoFields(t *testing.T) {
 		t.Fatalf("expected 400 got %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestGetExecution_MissingTenant(t *testing.T) {
+	srv := New("8080", slog.Default(), &sql.DB{})
+	execID := uuid.NewString()
+	req := httptest.NewRequest(http.MethodGet, "/v1/executions/"+execID, nil)
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetExecution_InvalidID(t *testing.T) {
+	srv := New("8080", slog.Default(), &sql.DB{})
+	tenant := uuid.NewString()
+	req := httptest.NewRequest(http.MethodGet, "/v1/executions/not-uuid", nil)
+	req.Header.Set("X-Tenant-ID", tenant)
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteJob_MissingTenant(t *testing.T) {
+	srv := New("8080", slog.Default(), &sql.DB{})
+	jobID := uuid.NewString()
+	req := httptest.NewRequest(http.MethodDelete, "/v1/jobs/"+jobID, nil)
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteJob_InvalidID(t *testing.T) {
+	srv := New("8080", slog.Default(), &sql.DB{})
+	tenant := uuid.NewString()
+	req := httptest.NewRequest(http.MethodDelete, "/v1/jobs/not-uuid", nil)
+	req.Header.Set("X-Tenant-ID", tenant)
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 got %d %s", rec.Code, rec.Body.String())
+	}
+}
