@@ -10,15 +10,15 @@ This is the source of truth for where the product stands. `AGENTS.md` and `CONTE
 * `schedule.go` — typed `Schedule` with `NewCronSchedule`, `NewIntervalSchedule`, `NewOnceSchedule`, `NextRun` pure and UTC.
 * `tenant.go` — distinct `TenantID` type, explicit param.
 * `service.go` — `ScheduleDue` does `BEGIN; LockDueJob FOR UPDATE SKIP LOCKED tenant-scoped; CountActiveExecutions; typed Schedule rebuild; NextRun after due time; CreateExecution READY; UpdateJobNextRun` atomically.
-* `store.go` — `Create`, `Update`, `Get`, `List` tenant-scoped, `validateCreateInput` helper, SSRF guard.
+* `store.go` — `Create`, `Update`, `Get`, `List`, `GetExecution` with `GetExecution` join and `ListAttempts`, `DeleteJob` hard delete with `DeleteAttemptsForJob` and `DeleteExecutionsForJob` then `HardDeleteJob` in a transaction tenant scoped, `validateCreateInput` helper, SSRF guard.
 
-**API:** `server/internal/server/server.go` with `chi`, `X-Tenant-ID` header middleware, `GET /health`, `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /v1/jobs/{id}/executions` (10 recent, tenant-scoped via `job.Service.ListExecutions`). All schedule validation reuses the typed constructors, so 400s happen before the DB. Static UI at `GET /` serves `server/static/index.html`.
+**API:** `server/internal/server/server.go` with `chi`, `X-Tenant-ID` header middleware, `GET /health`, `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `DELETE /v1/jobs/{id}` hard delete with cascading deletes in a transaction tenant scoped, `GET /v1/jobs/{id}/executions` (20 recent, tenant-scoped via `job.Service.ListExecutions`), `GET /v1/executions/{id}` with attempts and `job_name` and `target.url` tenant scoped via `job.Service.GetExecution`. All schedule validation reuses the typed constructors, so 400s happen before the DB. Static UI at `GET /` serves `server/static/index.html`.
 
 **Scheduler ticker:** `server/internal/scheduler/ticker.go` polls `GetDueJobs 100` every second with a 5s per-tick timeout, then calls `ScheduleDue` per row. Fleet safe via `SKIP LOCKED`. Lives inside `server/cmd/api` for MVP, easy to split to `cmd/scheduler` later. Integration tests use a real Neon DB when `DB_URL` is set.
 
 **Worker fleet:** `server/internal/worker/` owns the claim and execute seam. `service.go` polls `GetReadyExecutions 10` every second with 30s per-tick timeout, `TryClaimExecution` with `gen_random_uuid()` and `lease_until NOW()+30s`, `MarkRunning`, `CreateAttempt RUNNING`, `doHTTP` with `target_timeout_seconds` default 30 and SSRF guard, `CompleteAttempt` and `CompleteExecutionSuccess` on 2xx or `RescheduleForRetry` with exponential backoff (`NextDelay` pure, `retry_initial_delay_seconds` 60, cap `retry_max_delay_seconds` 3600) or `FailExecution` terminal. Also `ReapExpiredLeases` resets stuck `CLAIMED/RUNNING` to `READY`. Lives inside `server/cmd/api` for MVP, will split to `cmd/worker` for independent scaling. Integration tests use Neon DB and `httptest` server.
 
-**DB:** Postgres 15 on Neon, `pgcrypto`, migrations `jobs`, `executions`, `attempts`, partial index `idx_jobs_next_run where enabled`, `idx_executions_ready where status READY` and `idx_executions_lease where status IN (CLAIMED,RUNNING)`, `worker.sql` for claim and execution queries, `scheduler.sql` fixed from `schedular.sql`, generated code in `server/internal/database/generated/` is committed.
+**DB:** Postgres 15 on Neon, `pgcrypto`, migrations `jobs`, `executions`, `attempts`, partial index `idx_jobs_next_run where enabled`, `idx_executions_ready where status READY` and `idx_executions_lease where status IN (CLAIMED,RUNNING)`, `worker.sql` for claim and execution queries, `execution.sql` for `GetExecution` and `HardDeleteJob` with cascading deletes, `scheduler.sql` fixed from `schedular.sql`, generated code in `server/internal/database/generated/` is committed.
 
 **Ops fix:** `server/internal/database/migrate.go` no longer calls `m.Close()` that closed the main pool. `server/cmd/api/main.go` migrates on a throwaway `mdb` then pings the main `db` to confirm it stayed open. Verified with `go build -o /tmp/cronio && /tmp/cronio` — `POST /v1/jobs` now returns `201`.
 
@@ -42,18 +42,18 @@ No `DATABASE_URL`, only `DB_URL`. `lsof -ti :8080 | xargs kill -9` before a rebu
 
 ## What is not built yet
 
-* `GET /v1/executions/{id}` for single execution detail, `DELETE` as soft disable, `retry` and `concurrency` fields in the API JSON, pagination and filtering, `target.timeout` per job (today default 30s).
+* `retry` and `concurrency` fields in the API JSON, pagination and filtering, `target.timeout` per job (today default 30s). `DELETE` is hard delete now, soft delete that keeps history is planned for next iteration.
 * API keys per tenant. Today it is a header you pick.
 * Scheduler and worker as `cmd/scheduler` and `cmd/worker` for independent scaling, `leases` table separate from `executions`, Prometheus metrics.
 * Full Next.js UI in `web/`. Quick visual is done at `http://localhost:8080/`.
 
 ## Future plans
 
-**Next slice, worker is done, so execution detail and `DELETE` are natural next.** Worker proves end-to-end `READY` to `SUCCESS` with retries. Detail endpoint unblocks the UI.
+**Next slice, execution detail and hard delete are done.** Detail endpoint unblocks the UI for showing attempts. Soft delete that keeps history is the next small iteration.
 
 **Roadmap from the product plan:**
 
-* Phase 1 MVP remainder — execution list and detail, `DELETE`, Prometheus `scheduler_claimed_total` and `lease` expiry, per-tenant isolation in every query.
+* Phase 1 MVP remainder — soft delete, `retry` and `concurrency` fields in API, Prometheus `scheduler_claimed_total` and `lease` expiry, per-tenant isolation in every query.
 * Phase 1.5 — outbox plus NATS JetStream, dispatcher, SDK workers in Go, Python, Node, encrypted `{{secret.*}}`, per-tenant and per-worker concurrency, calendar exceptions.
 * Phase 2 — event triggers, DAGs with fan-out, SAML, RBAC, audit logs, OpenTelemetry tracing, PagerDuty and Slack, multi-region.
 
