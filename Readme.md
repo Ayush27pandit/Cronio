@@ -14,15 +14,15 @@ Cronio replaces crontabs and one-off schedulers with one place to create a job, 
 
 ## Status
 
-Working, not finished. The deep `Job` seam is done and the API can create and list jobs per tenant. The scheduler ticker and worker fleet are next.
+Working, not finished. Job, scheduler, and worker are done. The API creates jobs, scheduler turns due jobs into `READY` executions, worker claims and POSTs to your URL with retries.
 
 | Area | Done | Next |
 |------|------|------|
 | Job definition | typed `Schedule` (cron 5-field, interval, once), tenant isolation, `next_run_at` calc | `retry` and `concurrency` fields in the API |
-| Storage | Postgres with `pgcrypto`, migrations `jobs`, `executions`, `attempts`, `FOR UPDATE SKIP LOCKED` | separate `leases` table when needed |
-| API | `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /health`, `X-Tenant-ID` header | `DELETE`, execution endpoints, API keys |
-| Scheduler | `job.Service.ScheduleDue` owns the atomic `lock → count → create execution → advance next_run` behind one seam | ticker loop that calls it every second |
-| Worker | target URL validation and SSRF guard | claim, heartbeat, HTTP execute, retry |
+| Storage | Postgres with `pgcrypto`, migrations `jobs`, `executions`, `attempts`, `FOR UPDATE SKIP LOCKED`, `worker.sql` claim | separate `leases` table when needed |
+| API | `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /v1/jobs/{id}/executions`, `GET /health`, `X-Tenant-ID` header | `DELETE`, `GET /v1/executions/{id}`, API keys |
+| Scheduler | ticker polls `GetDueJobs 100` every second and calls `ScheduleDue` fleet-safe | split to `cmd/scheduler` |
+| Worker | polls `GetReadyExecutions 10` every second where `scheduled_at <= NOW()`, claims with `lease_until 30s`, `POST` with `target_timeout_seconds`, writes `attempts`, retries with exponential backoff, reaps expired leases | `target.timeout` per job, heartbeat, `cmd/worker` split |
 
 See `CONTEXT.md` for the domain language and `docs/` for details.
 
@@ -110,7 +110,7 @@ More examples: `docs/api.md`.
 * **At-least-once.** Cronio gives you the execution id, your target handles dedupe.
 * **Independent scaling.** API, schedulers, and workers scale on their own load.
 
-Current deep module: `server/internal/job/` owns the Job seam. `schedule.go` holds typed `Schedule`, `tenant.go` holds `TenantID`, `service.go` holds `ScheduleDue` with `SKIP LOCKED` and concurrency, `store.go` holds `Create` and `Update`. The old `internal/scheduler/` and `internal/database/repository/` were shallow and are gone.
+Current deep modules: `server/internal/job/` owns the Job seam (`schedule.go` typed `Schedule`, `tenant.go` `TenantID`, `service.go` `ScheduleDue` with `SKIP LOCKED`), `server/internal/scheduler/ticker.go` owns the scheduler poll, `server/internal/worker/` owns the claim and execute seam (`service.go` `Tick`, `http.go` `doHTTP`, `backoff.go` `NextDelay`). All run in `server/cmd/api` for MVP, will split to `cmd/scheduler` and `cmd/worker` for scaling.
 
 Details: `docs/architecture.md`.
 

@@ -27,26 +27,26 @@ Chi router with four middlewares in order `RequestID → Recovery → Logger →
 
 ### Config and wiring
 
-`server/internal/config/config.go` reads `DB_URL` required and `PORT` and `LOG_LEVEL` with defaults. `server/cmd/api/main.go` loads `server/.env` via `godotenv` when run from `server/`, connects with `database.New` which pings with 5 seconds, runs migrations from the embedded `migrations/*.sql` via `golang-migrate` on a throwaway connection so the main pool stays open, then creates `job.New(db)` and `server.New(port, logger, db)`.
+`server/internal/config/config.go` reads `DB_URL` required and `PORT` and `LOG_LEVEL` with defaults. `server/cmd/api/main.go` loads `server/.env` via `godotenv` when run from `server/`, connects with `database.New` which pings with 5 seconds, runs migrations from the embedded `migrations/*.sql` via `golang-migrate` on a throwaway connection so the main pool stays open, then creates `job.New(db)`, `server.New(port, logger, db)`, `scheduler.NewTicker` and `worker.New` both running in-process for MVP. They will split to `cmd/scheduler` and `cmd/worker` for independent scaling with no code change beyond wiring.
 
 ### Database
 
 Postgres 15+ with `pgcrypto` for `gen_random_uuid()`.
 
 * `jobs` — the card on the wall: `tenant_id`, `name`, `schedule_type` check `cron|interval|once`, `schedule_expr`, `timezone default UTC`, `target_*`, `retry_*`, `concurrency_max_executions default 1`, `misfire_policy default fire_once`, `enabled`, `next_run_at timestamptz` with partial index `idx_jobs_next_run where enabled=true`, `metadata jsonb`.
-* `executions` — one chit per firing: `job_id → jobs`, `tenant_id`, `status` `READY|CLAIMED|RUNNING|SUCCESS|FAILURE|TIMEOUT|CANCELLED|DEAD`, `scheduled_at`, `claimed_at`, `lease_until`, `claim_token`. Indexes on `status = READY` and `lease_until where status in (CLAIMED,RUNNING)`.
-* `attempts` — one try within an execution: `execution_id → executions`, `attempt_number`, `status` `RUNNING|SUCCESS|FAILURE|TIMEOUT`, request and response bodies and headers.
+* `executions` — one chit per firing: `job_id → jobs`, `tenant_id`, `status` `READY|CLAIMED|RUNNING|SUCCESS|FAILURE|TIMEOUT|CANCELLED|DEAD`, `scheduled_at`, `claimed_at`, `lease_until`, `claim_token`, `attempt_count`, `result_*`. Indexes on `status = READY and scheduled_at` and `lease_until where status in (CLAIMED,RUNNING)`.
+* `attempts` — one try within an execution: `execution_id → executions`, `attempt_number` unique per execution, `status` `RUNNING|SUCCESS|FAILURE|TIMEOUT`, request and response bodies and headers. Worker writes one row per try.
 
-Generated code in `server/internal/database/generated/` is committed. Edit `queries/*.sql` then `sqlc generate`. Do not hand edit. The typo `schedular.sql` was fixed to `scheduler.sql` and handling now uses `SKIP LOCKED`.
+Generated code in `server/internal/database/generated/` is committed. Edit `queries/*.sql` then `sqlc generate`. Do not hand edit. `worker.sql` holds `GetReadyExecutions` with `scheduled_at <= NOW()` and `TryClaimExecution` with `gen_random_uuid()` and 30s lease, `scheduler.sql` holds `LockDueJob SKIP LOCKED`.
 
 ### Transactions
 
-`ScheduleDue` is the only place that writes both `executions` and `jobs.next_run_at` together. It holds the row lock for less than a millisecond, then releases. Workers hold the lease for seconds. That split is why schedulers and workers scale separately.
+`ScheduleDue` is the only place that writes both `executions` and `jobs.next_run_at` together. It holds the row lock for less than a millisecond, then releases. Workers hold the lease for seconds via `TryClaimExecution` and `MarkRunning` then `lease_until` 30s. `ScheduleDue` and worker claim are separate transactions, both `SKIP LOCKED`, so schedulers and workers scale separately.
 
 ### Scaling and failure
 
-Run one API and two schedulers. Both poll `GetDueJobs` every second, but `SKIP LOCKED` means they take different rows. Kill one scheduler, the other picks up within a tick. Kill a worker holding a `CLAIMED` execution, its lease expires after 30 seconds and another worker claims it. Retries use exponential backoff inside the worker, not in the Job module.
+Run one API and two schedulers and two workers in one binary for MVP, or split to `cmd/api`, `cmd/scheduler`, `cmd/worker` later with same DB pool. Both schedulers poll `GetDueJobs` every second, `SKIP LOCKED` gives different rows. Workers poll `GetReadyExecutions` every second where `scheduled_at <= NOW()`, claim with `status READY` check. Kill a scheduler, the other picks up within a tick. Kill a worker holding `CLAIMED`, its `lease_until` expires after 30 seconds and `ReapExpiredLeases` resets it to `READY` so another worker claims it. Retries use exponential backoff in `worker.NextDelay`, capped at `retry_max_delay_seconds`.
 
 ### What is not built yet
 
-The ticker loop that calls `ScheduleDue` for every due job, the worker fleet that does the HTTP call and heartbeat, the dispatcher and NATS outbox, and the UI. The API today is `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`. Execution endpoints, API keys, and per-tenant quotas are planned.
+The dispatcher and NATS outbox, heartbeat renewal for long jobs, and the full UI. The API today is `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /v1/jobs/{id}/executions`. `GET /v1/executions/{id}`, `DELETE`, API keys, and per-tenant quotas are planned.
