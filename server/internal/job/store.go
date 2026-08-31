@@ -298,6 +298,79 @@ func (s *Service) ListExecutions(ctx context.Context, tenantID TenantID, jobID u
 	})
 }
 
+// ExecutionDetail holds one execution and its attempts, tenant scoped via execution tenant.
+type ExecutionDetail struct {
+	Execution db.GetExecutionRow
+	Attempts  []db.ListAttemptsForExecutionRow
+}
+
+// GetExecution returns one execution with its attempts, tenant scoped.
+// It returns sql.ErrNoRows if the execution does not exist or belongs to another tenant.
+func (s *Service) GetExecution(ctx context.Context, tenantID TenantID, execID uuid.UUID) (ExecutionDetail, error) {
+	if tenantID.IsZero() {
+		return ExecutionDetail{}, fmt.Errorf("tenant_id is required")
+	}
+	q := db.New(s.db)
+	row, err := q.GetExecution(ctx, db.GetExecutionParams{
+		ID:       execID,
+		TenantID: tenantID.UUID(),
+	})
+	if err != nil {
+		return ExecutionDetail{}, err
+	}
+	atts, err := q.ListAttemptsForExecution(ctx, execID)
+	if err != nil {
+		return ExecutionDetail{}, err
+	}
+	return ExecutionDetail{
+		Execution: row,
+		Attempts:  atts,
+	}, nil
+}
+
+// DeleteJob hard deletes a job and its executions and attempts, tenant scoped.
+// It uses a transaction to delete children before the job row, so FK constraints pass.
+// Returns sql.ErrNoRows if the job does not exist or belongs to another tenant.
+// Future soft delete will keep history and just set enabled false.
+func (s *Service) DeleteJob(ctx context.Context, tenantID TenantID, jobID uuid.UUID) error {
+	if tenantID.IsZero() {
+		return fmt.Errorf("tenant_id is required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	q := db.New(s.db).WithTx(tx)
+	// Verify tenant owns the job before deleting children.
+	if _, err := q.GetJobForTenant(ctx, db.GetJobForTenantParams{ID: jobID, TenantID: tenantID.UUID()}); err != nil {
+		return err
+	}
+	if err := q.DeleteAttemptsForJob(ctx, jobID); err != nil {
+		return fmt.Errorf("delete attempts: %w", err)
+	}
+	if err := q.DeleteExecutionsForJob(ctx, jobID); err != nil {
+		return fmt.Errorf("delete executions: %w", err)
+	}
+	id, err := q.HardDeleteJob(ctx, db.HardDeleteJobParams{
+		ID:       jobID,
+		TenantID: tenantID.UUID(),
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sql.ErrNoRows
+		}
+		return fmt.Errorf("delete job: %w", err)
+	}
+	if id == uuid.Nil {
+		return sql.ErrNoRows
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete: %w", err)
+	}
+	return nil
+}
+
 // validateTargetURL checks that raw is an http or https URL with a host.
 // It blocks the metadata IP used for SSRF in MVP: 169.254.169.254.
 func validateTargetURL(raw string) error {
