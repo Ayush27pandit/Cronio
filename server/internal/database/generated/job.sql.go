@@ -22,10 +22,13 @@ INSERT INTO jobs (
     schedule_expr,
     timezone,
     target_url,
+    target_timeout_seconds,
+    retry_max_attempts,
+    concurrency_max_executions,
     next_run_at,
     enabled
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING
     id,
     tenant_id,
@@ -35,6 +38,9 @@ INSERT INTO jobs (
     schedule_expr,
     timezone,
     target_url,
+    target_timeout_seconds,
+    retry_max_attempts,
+    concurrency_max_executions,
     next_run_at,
     enabled,
     created_at,
@@ -42,30 +48,36 @@ INSERT INTO jobs (
 `
 
 type CreateJobParams struct {
-	TenantID     uuid.UUID      `json:"tenant_id"`
-	Name         string         `json:"name"`
-	Description  sql.NullString `json:"description"`
-	ScheduleType string         `json:"schedule_type"`
-	ScheduleExpr string         `json:"schedule_expr"`
-	Timezone     string         `json:"timezone"`
-	TargetUrl    string         `json:"target_url"`
-	NextRunAt    sql.NullTime   `json:"next_run_at"`
-	Enabled      bool           `json:"enabled"`
+	TenantID                 uuid.UUID      `json:"tenant_id"`
+	Name                     string         `json:"name"`
+	Description              sql.NullString `json:"description"`
+	ScheduleType             string         `json:"schedule_type"`
+	ScheduleExpr             string         `json:"schedule_expr"`
+	Timezone                 string         `json:"timezone"`
+	TargetUrl                string         `json:"target_url"`
+	TargetTimeoutSeconds     int32          `json:"target_timeout_seconds"`
+	RetryMaxAttempts         int32          `json:"retry_max_attempts"`
+	ConcurrencyMaxExecutions int32          `json:"concurrency_max_executions"`
+	NextRunAt                sql.NullTime   `json:"next_run_at"`
+	Enabled                  bool           `json:"enabled"`
 }
 
 type CreateJobRow struct {
-	ID           uuid.UUID      `json:"id"`
-	TenantID     uuid.UUID      `json:"tenant_id"`
-	Name         string         `json:"name"`
-	Description  sql.NullString `json:"description"`
-	ScheduleType string         `json:"schedule_type"`
-	ScheduleExpr string         `json:"schedule_expr"`
-	Timezone     string         `json:"timezone"`
-	TargetUrl    string         `json:"target_url"`
-	NextRunAt    sql.NullTime   `json:"next_run_at"`
-	Enabled      bool           `json:"enabled"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
+	ID                       uuid.UUID      `json:"id"`
+	TenantID                 uuid.UUID      `json:"tenant_id"`
+	Name                     string         `json:"name"`
+	Description              sql.NullString `json:"description"`
+	ScheduleType             string         `json:"schedule_type"`
+	ScheduleExpr             string         `json:"schedule_expr"`
+	Timezone                 string         `json:"timezone"`
+	TargetUrl                string         `json:"target_url"`
+	TargetTimeoutSeconds     int32          `json:"target_timeout_seconds"`
+	RetryMaxAttempts         int32          `json:"retry_max_attempts"`
+	ConcurrencyMaxExecutions int32          `json:"concurrency_max_executions"`
+	NextRunAt                sql.NullTime   `json:"next_run_at"`
+	Enabled                  bool           `json:"enabled"`
+	CreatedAt                time.Time      `json:"created_at"`
+	UpdatedAt                time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error) {
@@ -77,6 +89,9 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (CreateJob
 		arg.ScheduleExpr,
 		arg.Timezone,
 		arg.TargetUrl,
+		arg.TargetTimeoutSeconds,
+		arg.RetryMaxAttempts,
+		arg.ConcurrencyMaxExecutions,
 		arg.NextRunAt,
 		arg.Enabled,
 	)
@@ -90,6 +105,9 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (CreateJob
 		&i.ScheduleExpr,
 		&i.Timezone,
 		&i.TargetUrl,
+		&i.TargetTimeoutSeconds,
+		&i.RetryMaxAttempts,
+		&i.ConcurrencyMaxExecutions,
 		&i.NextRunAt,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -413,6 +431,64 @@ func (q *Queries) ListJobs(ctx context.Context, tenantID uuid.UUID) ([]Job, erro
 	return items, nil
 }
 
+const softDeleteJob = `-- name: SoftDeleteJob :one
+UPDATE jobs SET
+    enabled = false,
+    next_run_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING
+    id,
+    tenant_id,
+    name,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled,
+    created_at,
+    updated_at
+`
+
+type SoftDeleteJobParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+type SoftDeleteJobRow struct {
+	ID           uuid.UUID    `json:"id"`
+	TenantID     uuid.UUID    `json:"tenant_id"`
+	Name         string       `json:"name"`
+	ScheduleType string       `json:"schedule_type"`
+	ScheduleExpr string       `json:"schedule_expr"`
+	Timezone     string       `json:"timezone"`
+	TargetUrl    string       `json:"target_url"`
+	NextRunAt    sql.NullTime `json:"next_run_at"`
+	Enabled      bool         `json:"enabled"`
+	CreatedAt    time.Time    `json:"created_at"`
+	UpdatedAt    time.Time    `json:"updated_at"`
+}
+
+func (q *Queries) SoftDeleteJob(ctx context.Context, arg SoftDeleteJobParams) (SoftDeleteJobRow, error) {
+	row := q.db.QueryRowContext(ctx, softDeleteJob, arg.ID, arg.TenantID)
+	var i SoftDeleteJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.ScheduleType,
+		&i.ScheduleExpr,
+		&i.Timezone,
+		&i.TargetUrl,
+		&i.NextRunAt,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateJob = `-- name: UpdateJob :one
 UPDATE jobs SET
     name = $3,
@@ -421,8 +497,11 @@ UPDATE jobs SET
     schedule_expr = $6,
     timezone = $7,
     target_url = $8,
-    next_run_at = $9,
-    enabled = $10,
+    target_timeout_seconds = $9,
+    retry_max_attempts = $10,
+    concurrency_max_executions = $11,
+    next_run_at = $12,
+    enabled = $13,
     updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
 RETURNING
@@ -434,6 +513,9 @@ RETURNING
     schedule_expr,
     timezone,
     target_url,
+    target_timeout_seconds,
+    retry_max_attempts,
+    concurrency_max_executions,
     next_run_at,
     enabled,
     created_at,
@@ -441,31 +523,37 @@ RETURNING
 `
 
 type UpdateJobParams struct {
-	ID           uuid.UUID      `json:"id"`
-	TenantID     uuid.UUID      `json:"tenant_id"`
-	Name         string         `json:"name"`
-	Description  sql.NullString `json:"description"`
-	ScheduleType string         `json:"schedule_type"`
-	ScheduleExpr string         `json:"schedule_expr"`
-	Timezone     string         `json:"timezone"`
-	TargetUrl    string         `json:"target_url"`
-	NextRunAt    sql.NullTime   `json:"next_run_at"`
-	Enabled      bool           `json:"enabled"`
+	ID                       uuid.UUID      `json:"id"`
+	TenantID                 uuid.UUID      `json:"tenant_id"`
+	Name                     string         `json:"name"`
+	Description              sql.NullString `json:"description"`
+	ScheduleType             string         `json:"schedule_type"`
+	ScheduleExpr             string         `json:"schedule_expr"`
+	Timezone                 string         `json:"timezone"`
+	TargetUrl                string         `json:"target_url"`
+	TargetTimeoutSeconds     int32          `json:"target_timeout_seconds"`
+	RetryMaxAttempts         int32          `json:"retry_max_attempts"`
+	ConcurrencyMaxExecutions int32          `json:"concurrency_max_executions"`
+	NextRunAt                sql.NullTime   `json:"next_run_at"`
+	Enabled                  bool           `json:"enabled"`
 }
 
 type UpdateJobRow struct {
-	ID           uuid.UUID      `json:"id"`
-	TenantID     uuid.UUID      `json:"tenant_id"`
-	Name         string         `json:"name"`
-	Description  sql.NullString `json:"description"`
-	ScheduleType string         `json:"schedule_type"`
-	ScheduleExpr string         `json:"schedule_expr"`
-	Timezone     string         `json:"timezone"`
-	TargetUrl    string         `json:"target_url"`
-	NextRunAt    sql.NullTime   `json:"next_run_at"`
-	Enabled      bool           `json:"enabled"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
+	ID                       uuid.UUID      `json:"id"`
+	TenantID                 uuid.UUID      `json:"tenant_id"`
+	Name                     string         `json:"name"`
+	Description              sql.NullString `json:"description"`
+	ScheduleType             string         `json:"schedule_type"`
+	ScheduleExpr             string         `json:"schedule_expr"`
+	Timezone                 string         `json:"timezone"`
+	TargetUrl                string         `json:"target_url"`
+	TargetTimeoutSeconds     int32          `json:"target_timeout_seconds"`
+	RetryMaxAttempts         int32          `json:"retry_max_attempts"`
+	ConcurrencyMaxExecutions int32          `json:"concurrency_max_executions"`
+	NextRunAt                sql.NullTime   `json:"next_run_at"`
+	Enabled                  bool           `json:"enabled"`
+	CreatedAt                time.Time      `json:"created_at"`
+	UpdatedAt                time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) UpdateJob(ctx context.Context, arg UpdateJobParams) (UpdateJobRow, error) {
@@ -478,6 +566,9 @@ func (q *Queries) UpdateJob(ctx context.Context, arg UpdateJobParams) (UpdateJob
 		arg.ScheduleExpr,
 		arg.Timezone,
 		arg.TargetUrl,
+		arg.TargetTimeoutSeconds,
+		arg.RetryMaxAttempts,
+		arg.ConcurrencyMaxExecutions,
 		arg.NextRunAt,
 		arg.Enabled,
 	)
@@ -491,6 +582,9 @@ func (q *Queries) UpdateJob(ctx context.Context, arg UpdateJobParams) (UpdateJob
 		&i.ScheduleExpr,
 		&i.Timezone,
 		&i.TargetUrl,
+		&i.TargetTimeoutSeconds,
+		&i.RetryMaxAttempts,
+		&i.ConcurrencyMaxExecutions,
 		&i.NextRunAt,
 		&i.Enabled,
 		&i.CreatedAt,

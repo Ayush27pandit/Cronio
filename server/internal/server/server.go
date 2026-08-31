@@ -69,8 +69,15 @@ type createJobRequest struct {
 		Timezone   string `json:"timezone"`
 	} `json:"schedule"`
 	Target struct {
-		URL string `json:"url"`
+		URL            string `json:"url"`
+		TimeoutSeconds *int32 `json:"timeout_seconds"`
 	} `json:"target"`
+	Retry struct {
+		MaxAttempts *int32 `json:"max_attempts"`
+	} `json:"retry"`
+	Concurrency struct {
+		MaxExecutions *int32 `json:"max_executions"`
+	} `json:"concurrency"`
 }
 
 func handleCreateJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
@@ -120,11 +127,26 @@ func handleCreateJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 		if req.Description != nil {
 			desc = *req.Description
 		}
+		var timeout int32
+		if req.Target.TimeoutSeconds != nil {
+			timeout = *req.Target.TimeoutSeconds
+		}
+		var retry int32
+		if req.Retry.MaxAttempts != nil {
+			retry = *req.Retry.MaxAttempts
+		}
+		var concurrency int32
+		if req.Concurrency.MaxExecutions != nil {
+			concurrency = *req.Concurrency.MaxExecutions
+		}
 		row, err := svc.Create(r.Context(), job.TenantID(tenantID), job.CreateInput{
-			Name:        req.Name,
-			Description: desc,
-			Schedule:    sched,
-			TargetURL:   req.Target.URL,
+			Name:                     req.Name,
+			Description:              desc,
+			Schedule:                 sched,
+			TargetURL:                req.Target.URL,
+			TargetTimeoutSeconds:     timeout,
+			RetryMaxAttempts:         retry,
+			ConcurrencyMaxExecutions: concurrency,
 		})
 		if err != nil {
 			logger.Error("create job failed", "error", err, "tenant", tenantID.String())
@@ -139,7 +161,11 @@ func handleCreateJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			"tenant_id": row.TenantID.String(),
 			"name":      row.Name,
 			"schedule":  map[string]string{"type": row.ScheduleType, "expression": row.ScheduleExpr, "timezone": row.Timezone},
-			"target":    map[string]string{"url": row.TargetUrl},
+			"target":    map[string]any{"url": row.TargetUrl, "timeout_seconds": row.TargetTimeoutSeconds},
+			"retry":     map[string]int32{"max_attempts": row.RetryMaxAttempts},
+			"concurrency": map[string]int32{
+				"max_executions": row.ConcurrencyMaxExecutions,
+			},
 			"next_run_at": func() any {
 				if row.NextRunAt.Valid {
 					return row.NextRunAt.Time.Format(time.RFC3339)
@@ -162,12 +188,14 @@ func handleListJobs(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 		type outJob struct {
-			ID        string  `json:"id"`
-			Name      string  `json:"name"`
-			Schedule  any     `json:"schedule"`
-			Target    any     `json:"target"`
-			NextRunAt *string `json:"next_run_at"`
-			Enabled   bool    `json:"enabled"`
+			ID          string  `json:"id"`
+			Name        string  `json:"name"`
+			Schedule    any     `json:"schedule"`
+			Target      any     `json:"target"`
+			Retry       any     `json:"retry"`
+			Concurrency any     `json:"concurrency"`
+			NextRunAt   *string `json:"next_run_at"`
+			Enabled     bool    `json:"enabled"`
 		}
 		out := make([]outJob, 0, len(jobs))
 		for _, j := range jobs {
@@ -182,9 +210,11 @@ func handleListJobs(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 				Schedule: map[string]string{
 					"type": j.ScheduleType, "expression": j.ScheduleExpr, "timezone": j.Timezone,
 				},
-				Target:    map[string]string{"url": j.TargetUrl},
-				NextRunAt: nra,
-				Enabled:   j.Enabled,
+				Target:      map[string]any{"url": j.TargetUrl, "timeout_seconds": j.TargetTimeoutSeconds},
+				Retry:       map[string]int32{"max_attempts": j.RetryMaxAttempts},
+				Concurrency: map[string]int32{"max_executions": j.ConcurrencyMaxExecutions},
+				NextRunAt:   nra,
+				Enabled:     j.Enabled,
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -217,7 +247,9 @@ func handleGetJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			"tenant_id":   j.TenantID.String(),
 			"name":        j.Name,
 			"schedule":    map[string]string{"type": j.ScheduleType, "expression": j.ScheduleExpr, "timezone": j.Timezone},
-			"target":      map[string]string{"url": j.TargetUrl},
+			"target":      map[string]any{"url": j.TargetUrl, "timeout_seconds": j.TargetTimeoutSeconds},
+			"retry":       map[string]int32{"max_attempts": j.RetryMaxAttempts},
+			"concurrency": map[string]int32{"max_executions": j.ConcurrencyMaxExecutions},
 			"next_run_at": nra,
 			"enabled":     j.Enabled,
 			"created_at":  j.CreatedAt.Format(time.RFC3339),
@@ -236,8 +268,15 @@ type patchJobRequest struct {
 		Timezone   string `json:"timezone"`
 	} `json:"schedule"`
 	Target *struct {
-		URL *string `json:"url"`
+		URL            *string `json:"url"`
+		TimeoutSeconds *int32  `json:"timeout_seconds"`
 	} `json:"target"`
+	Retry *struct {
+		MaxAttempts *int32 `json:"max_attempts"`
+	} `json:"retry"`
+	Concurrency *struct {
+		MaxExecutions *int32 `json:"max_executions"`
+	} `json:"concurrency"`
 }
 
 func handlePatchJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
@@ -254,7 +293,7 @@ func handlePatchJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid_json", "invalid JSON body")
 			return
 		}
-		if req.Name == nil && req.Description == nil && req.Enabled == nil && req.Schedule == nil && req.Target == nil {
+		if req.Name == nil && req.Description == nil && req.Enabled == nil && req.Schedule == nil && req.Target == nil && req.Retry == nil && req.Concurrency == nil {
 			writeError(w, http.StatusBadRequest, "invalid_request", "no fields to update")
 			return
 		}
@@ -294,12 +333,28 @@ func handlePatchJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			targetURL = &tu
 		}
 
+		var targetTimeout *int32
+		if req.Target != nil && req.Target.TimeoutSeconds != nil {
+			targetTimeout = req.Target.TimeoutSeconds
+		}
+		var retry *int32
+		if req.Retry != nil && req.Retry.MaxAttempts != nil {
+			retry = req.Retry.MaxAttempts
+		}
+		var concurrency *int32
+		if req.Concurrency != nil && req.Concurrency.MaxExecutions != nil {
+			concurrency = req.Concurrency.MaxExecutions
+		}
+
 		row, err := svc.Update(r.Context(), job.TenantID(tenantID), jobID, job.UpdateInput{
-			Name:        req.Name,
-			Description: req.Description,
-			Enabled:     req.Enabled,
-			Schedule:    sched,
-			TargetURL:   targetURL,
+			Name:                     req.Name,
+			Description:              req.Description,
+			Enabled:                  req.Enabled,
+			Schedule:                 sched,
+			TargetURL:                targetURL,
+			TargetTimeoutSeconds:     targetTimeout,
+			RetryMaxAttempts:         retry,
+			ConcurrencyMaxExecutions: concurrency,
 		})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -322,7 +377,9 @@ func handlePatchJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			"tenant_id":   row.TenantID.String(),
 			"name":        row.Name,
 			"schedule":    map[string]string{"type": row.ScheduleType, "expression": row.ScheduleExpr, "timezone": row.Timezone},
-			"target":      map[string]string{"url": row.TargetUrl},
+			"target":      map[string]any{"url": row.TargetUrl, "timeout_seconds": row.TargetTimeoutSeconds},
+			"retry":       map[string]int32{"max_attempts": row.RetryMaxAttempts},
+			"concurrency": map[string]int32{"max_executions": row.ConcurrencyMaxExecutions},
 			"next_run_at": nra,
 			"enabled":     row.Enabled,
 			"updated_at":  row.UpdatedAt.Format(time.RFC3339),
@@ -506,7 +563,8 @@ func handleDeleteJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid_id", "job id must be UUID")
 			return
 		}
-		if err := svc.DeleteJob(r.Context(), job.TenantID(tenantID), jobID); err != nil {
+		row, err := svc.DeleteJob(r.Context(), job.TenantID(tenantID), jobID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeError(w, http.StatusNotFound, "not_found", "job not found")
 				return
@@ -515,7 +573,20 @@ func handleDeleteJob(svc *job.Service, logger *slog.Logger) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "internal_error", "failed to delete job")
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":        row.ID.String(),
+			"tenant_id": row.TenantID.String(),
+			"name":      row.Name,
+			"enabled":   row.Enabled,
+			"next_run_at": func() any {
+				if row.NextRunAt.Valid {
+					return row.NextRunAt.Time.Format(time.RFC3339)
+				}
+				return nil
+			}(),
+			"deleted": true,
+		})
 	}
 }
 

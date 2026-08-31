@@ -59,6 +59,9 @@ Body:
   * `interval` needs Go duration like `15m`, `1h`, must be greater than zero.
   * `once` needs RFC3339 like `2026-09-01T09:00:00Z`. If it is already past, the job is created disabled with no `next_run_at`.
 * `target.url` required, must be `http` or `https`, host present, `169.254.169.254` is blocked for SSRF in MVP.
+* `target.timeout_seconds` optional, 5 to 300, default 30. Worker uses this for `doHTTP` timeout.
+* `retry.max_attempts` optional, 1 to 10, default 3. Worker retries with exponential backoff capped at `retry_max_delay_seconds`.
+* `concurrency.max_executions` optional, 1 to 10, default 1. Scheduler checks `CountActiveExecutions` inside the same transaction.
 
 `next_run_at` is computed from the typed `Schedule` with `NextRun(time.Now().UTC())` inside `job.Service.Create` and stored as UTC.
 
@@ -90,7 +93,9 @@ Response is `201`:
   "tenant_id": "11111111-1111-1111-1111-111111111111",
   "name": "daily report",
   "schedule": {"type": "cron", "expression": "0 9 * * *", "timezone": "Asia/Kolkata"},
-  "target": {"url": "https://example.com/reports"},
+  "target": {"url": "https://example.com/reports", "timeout_seconds": 30},
+  "retry": {"max_attempts": 3},
+  "concurrency": {"max_executions": 1},
   "next_run_at": "2026-08-30T09:00:00+05:30",
   "enabled": true,
   "created_at": "2026-08-30T00:40:46+05:30"
@@ -149,13 +154,15 @@ Content-Type: application/json
 X-Tenant-ID: 11111111-1111-1111-1111-111111111111
 ```
 
-Body may contain any of `name`, `description`, `enabled`, `schedule`, `target`. Omitted fields are left alone.
+Body may contain any of `name`, `description`, `enabled`, `schedule`, `target`, `retry`, `concurrency`. Omitted fields are left alone.
 
 ```json
 {"enabled": false}
 {"name": "daily report v2"}
 {"schedule": {"type": "interval", "expression": "30m"}}
-{"target": {"url": "https://example.com/v2"}}
+{"target": {"url": "https://example.com/v2", "timeout_seconds": 60}}
+{"retry": {"max_attempts": 5}}
+{"concurrency": {"max_executions": 2}}
 ```
 
 If `schedule` changes, `next_run_at` and `enabled` are recomputed via `NextRun`. Disabling sets `next_run_at` to `null`. Re-enabling a job that had no `next_run_at` recomputes it from the current schedule.
@@ -210,11 +217,11 @@ DELETE /v1/jobs/{id}
 X-Tenant-ID: 11111111-1111-1111-1111-111111111111
 ```
 
-Hard delete for MVP. Removes the job and its executions and attempts in one transaction, tenant scoped via `WHERE id and tenant_id`. Returns `204 No Content` on success, `404` if not found or wrong tenant. Future will be soft delete that keeps history and just sets `enabled false`.
+Soft delete. Sets `enabled false` and `next_run_at null`, keeps executions and attempts for history, tenant scoped via `WHERE id and tenant_id`. Returns `200` with the updated job `{"id":"...","enabled":false,"next_run_at":null,"deleted":true}`, `404` if not found or wrong tenant. Use `PATCH {"enabled":false}` if you need to pause without calling delete.
 
 ```bash
 curl -X DELETE -H "X-Tenant-ID: $TENANT" http://localhost:8080/v1/jobs/1927f0cf-4114-4555-85b3-7d06b23d11f2
-# 204, then GET returns 404
+# 200 {"id":"...","enabled":false,"deleted":true}, executions stay
 ```
 
 ## List executions for a job
@@ -232,8 +239,7 @@ curl -H "X-Tenant-ID: $TENANT" http://localhost:8080/v1/jobs/1927f0cf-4114-4555-
 
 ## What is not there yet
 
-* `DELETE` is hard delete now, soft delete that keeps history is planned.
-* `retry_policy`, `concurrency`, `misfire` are columns but not exposed in the JSON yet.
+* `retry` `initial_delay` and `max_delay`, `misfire` are columns but not exposed in the JSON yet. `retry max_attempts`, `concurrency max_executions`, and `target timeout_seconds` are now exposed via `POST` and `PATCH` `retry`, `concurrency`, and `target`.
 * Auth is header only. API keys per tenant are planned.
 * Pagination and filtering are not there.
 

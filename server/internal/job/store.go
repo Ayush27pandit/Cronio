@@ -34,6 +34,12 @@ type CreateInput struct {
 	Schedule Schedule
 	// TargetURL where the worker will POST. Must be http or https.
 	TargetURL string
+	// TargetTimeoutSeconds is optional, 5 to 300, default 30.
+	TargetTimeoutSeconds int32
+	// RetryMaxAttempts is optional, 1 to 10, default 3.
+	RetryMaxAttempts int32
+	// ConcurrencyMaxExecutions is optional, 1 to 10, default 1.
+	ConcurrencyMaxExecutions int32
 }
 
 // Create validates the input, computes next_run_at from the typed Schedule,
@@ -70,17 +76,42 @@ func (s *Service) Create(ctx context.Context, tenantID TenantID, in CreateInput)
 		desc = sql.NullString{String: strings.TrimSpace(in.Description), Valid: true}
 	}
 
+	timeout := in.TargetTimeoutSeconds
+	if timeout == 0 {
+		timeout = 30
+	}
+	if timeout < 5 || timeout > 300 {
+		return db.CreateJobRow{}, fmt.Errorf("target_timeout_seconds must be 5 to 300")
+	}
+	retry := in.RetryMaxAttempts
+	if retry == 0 {
+		retry = 3
+	}
+	if retry < 1 || retry > 10 {
+		return db.CreateJobRow{}, fmt.Errorf("retry_max_attempts must be 1 to 10")
+	}
+	concurrency := in.ConcurrencyMaxExecutions
+	if concurrency == 0 {
+		concurrency = 1
+	}
+	if concurrency < 1 || concurrency > 10 {
+		return db.CreateJobRow{}, fmt.Errorf("concurrency_max_executions must be 1 to 10")
+	}
+
 	q := db.New(s.db)
 	row, err := q.CreateJob(ctx, db.CreateJobParams{
-		TenantID:     tenantID.UUID(),
-		Name:         name,
-		Description:  desc,
-		ScheduleType: in.Schedule.Kind(),
-		ScheduleExpr: in.Schedule.Expr(),
-		Timezone:     in.Schedule.Timezone(),
-		TargetUrl:    strings.TrimSpace(in.TargetURL),
-		NextRunAt:    nextNull,
-		Enabled:      enabled,
+		TenantID:                 tenantID.UUID(),
+		Name:                     name,
+		Description:              desc,
+		ScheduleType:             in.Schedule.Kind(),
+		ScheduleExpr:             in.Schedule.Expr(),
+		Timezone:                 in.Schedule.Timezone(),
+		TargetUrl:                strings.TrimSpace(in.TargetURL),
+		TargetTimeoutSeconds:     timeout,
+		RetryMaxAttempts:         retry,
+		ConcurrencyMaxExecutions: concurrency,
+		NextRunAt:                nextNull,
+		Enabled:                  enabled,
 	})
 	if err != nil {
 		return db.CreateJobRow{}, fmt.Errorf("create job: %w", err)
@@ -107,11 +138,14 @@ func (s *Service) List(ctx context.Context, tenantID TenantID) ([]db.Job, error)
 
 // UpdateInput holds optional fields for PATCH. Nil means no change.
 type UpdateInput struct {
-	Name        *string
-	Description *string
-	Enabled     *bool
-	Schedule    *Schedule
-	TargetURL   *string
+	Name                     *string
+	Description              *string
+	Enabled                  *bool
+	Schedule                 *Schedule
+	TargetURL                *string
+	TargetTimeoutSeconds     *int32
+	RetryMaxAttempts         *int32
+	ConcurrencyMaxExecutions *int32
 }
 
 // Update patches a job for the tenant. Nil fields are left unchanged.
@@ -164,6 +198,29 @@ func (s *Service) Update(ctx context.Context, tenantID TenantID, jobID uuid.UUID
 			return db.UpdateJobRow{}, err
 		}
 		newTargetURL = tu
+	}
+
+	newTargetTimeout := cur.TargetTimeoutSeconds
+	newRetry := cur.RetryMaxAttempts
+	newConcurrency := cur.ConcurrencyMaxExecutions
+
+	if in.TargetTimeoutSeconds != nil {
+		if *in.TargetTimeoutSeconds < 5 || *in.TargetTimeoutSeconds > 300 {
+			return db.UpdateJobRow{}, fmt.Errorf("target_timeout_seconds must be 5 to 300")
+		}
+		newTargetTimeout = *in.TargetTimeoutSeconds
+	}
+	if in.RetryMaxAttempts != nil {
+		if *in.RetryMaxAttempts < 1 || *in.RetryMaxAttempts > 10 {
+			return db.UpdateJobRow{}, fmt.Errorf("retry_max_attempts must be 1 to 10")
+		}
+		newRetry = *in.RetryMaxAttempts
+	}
+	if in.ConcurrencyMaxExecutions != nil {
+		if *in.ConcurrencyMaxExecutions < 1 || *in.ConcurrencyMaxExecutions > 10 {
+			return db.UpdateJobRow{}, fmt.Errorf("concurrency_max_executions must be 1 to 10")
+		}
+		newConcurrency = *in.ConcurrencyMaxExecutions
 	}
 
 	scheduleChanged := false
@@ -232,16 +289,19 @@ func (s *Service) Update(ctx context.Context, tenantID TenantID, jobID uuid.UUID
 
 	q := db.New(s.db)
 	row, err := q.UpdateJob(ctx, db.UpdateJobParams{
-		ID:           jobID,
-		TenantID:     tenantID.UUID(),
-		Name:         newName,
-		Description:  newDesc,
-		ScheduleType: newSchedType,
-		ScheduleExpr: newSchedExpr,
-		Timezone:     newTz,
-		TargetUrl:    newTargetURL,
-		NextRunAt:    newNext,
-		Enabled:      newEnabled,
+		ID:                       jobID,
+		TenantID:                 tenantID.UUID(),
+		Name:                     newName,
+		Description:              newDesc,
+		ScheduleType:             newSchedType,
+		ScheduleExpr:             newSchedExpr,
+		Timezone:                 newTz,
+		TargetUrl:                newTargetURL,
+		TargetTimeoutSeconds:     newTargetTimeout,
+		RetryMaxAttempts:         newRetry,
+		ConcurrencyMaxExecutions: newConcurrency,
+		NextRunAt:                newNext,
+		Enabled:                  newEnabled,
 	})
 	if err != nil {
 		return db.UpdateJobRow{}, fmt.Errorf("update job: %w", err)
@@ -328,47 +388,21 @@ func (s *Service) GetExecution(ctx context.Context, tenantID TenantID, execID uu
 	}, nil
 }
 
-// DeleteJob hard deletes a job and its executions and attempts, tenant scoped.
-// It uses a transaction to delete children before the job row, so FK constraints pass.
-// Returns sql.ErrNoRows if the job does not exist or belongs to another tenant.
-// Future soft delete will keep history and just set enabled false.
-func (s *Service) DeleteJob(ctx context.Context, tenantID TenantID, jobID uuid.UUID) error {
+// DeleteJob soft deletes a job tenant scoped, keeps executions and attempts for history.
+// It sets enabled false and next_run_at null. Returns sql.ErrNoRows if not found.
+func (s *Service) DeleteJob(ctx context.Context, tenantID TenantID, jobID uuid.UUID) (db.SoftDeleteJobRow, error) {
 	if tenantID.IsZero() {
-		return fmt.Errorf("tenant_id is required")
+		return db.SoftDeleteJobRow{}, fmt.Errorf("tenant_id is required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin delete: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	q := db.New(s.db).WithTx(tx)
-	// Verify tenant owns the job before deleting children.
-	if _, err := q.GetJobForTenant(ctx, db.GetJobForTenantParams{ID: jobID, TenantID: tenantID.UUID()}); err != nil {
-		return err
-	}
-	if err := q.DeleteAttemptsForJob(ctx, jobID); err != nil {
-		return fmt.Errorf("delete attempts: %w", err)
-	}
-	if err := q.DeleteExecutionsForJob(ctx, jobID); err != nil {
-		return fmt.Errorf("delete executions: %w", err)
-	}
-	id, err := q.HardDeleteJob(ctx, db.HardDeleteJobParams{
+	q := db.New(s.db)
+	row, err := q.SoftDeleteJob(ctx, db.SoftDeleteJobParams{
 		ID:       jobID,
 		TenantID: tenantID.UUID(),
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return sql.ErrNoRows
-		}
-		return fmt.Errorf("delete job: %w", err)
+		return db.SoftDeleteJobRow{}, err
 	}
-	if id == uuid.Nil {
-		return sql.ErrNoRows
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit delete: %w", err)
-	}
-	return nil
+	return row, nil
 }
 
 // validateTargetURL checks that raw is an http or https URL with a host.

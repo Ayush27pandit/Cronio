@@ -80,10 +80,13 @@ INSERT INTO jobs (
     schedule_expr,
     timezone,
     target_url,
+    target_timeout_seconds,
+    retry_max_attempts,
+    concurrency_max_executions,
     next_run_at,
     enabled
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING
     id,
     tenant_id,
@@ -93,6 +96,9 @@ INSERT INTO jobs (
     schedule_expr,
     timezone,
     target_url,
+    target_timeout_seconds,
+    retry_max_attempts,
+    concurrency_max_executions,
     next_run_at,
     enabled,
     created_at,
@@ -134,8 +140,11 @@ UPDATE jobs SET
     schedule_expr = $6,
     timezone = $7,
     target_url = $8,
-    next_run_at = $9,
-    enabled = $10,
+    target_timeout_seconds = $9,
+    retry_max_attempts = $10,
+    concurrency_max_executions = $11,
+    next_run_at = $12,
+    enabled = $13,
     updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
 RETURNING
@@ -147,6 +156,9 @@ RETURNING
     schedule_expr,
     timezone,
     target_url,
+    target_timeout_seconds,
+    retry_max_attempts,
+    concurrency_max_executions,
     next_run_at,
     enabled,
     created_at,
@@ -164,3 +176,22 @@ FROM executions
 WHERE job_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC
 LIMIT $3;
+
+-- name: SoftDeleteJob :one
+UPDATE jobs SET
+    enabled = false,
+    next_run_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING
+    id,
+    tenant_id,
+    name,
+    schedule_type,
+    schedule_expr,
+    timezone,
+    target_url,
+    next_run_at,
+    enabled,
+    created_at,
+    updated_at;
