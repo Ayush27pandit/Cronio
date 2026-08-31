@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Ayush27pandit/Cronio/server/internal/job"
-	db "github.com/Ayush27pandit/Cronio/server/internal/database/generated"
 	"database/sql"
+	db "github.com/Ayush27pandit/Cronio/server/internal/database/generated"
+	"github.com/Ayush27pandit/Cronio/server/internal/job"
 )
 
 // Ticker is the heartbeat that turns due Jobs into READY Executions.

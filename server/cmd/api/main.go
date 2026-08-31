@@ -16,6 +16,7 @@ import (
 	"github.com/Ayush27pandit/Cronio/server/internal/job"
 	"github.com/Ayush27pandit/Cronio/server/internal/scheduler"
 	"github.com/Ayush27pandit/Cronio/server/internal/server"
+	"github.com/Ayush27pandit/Cronio/server/internal/worker"
 	"github.com/joho/godotenv"
 )
 
@@ -76,6 +77,12 @@ func main() {
 	defer tickerCancel()
 	go ticker.Start(tickerCtx)
 
+	// Start worker fleet in-process for MVP. Will split to cmd/worker for independent scaling.
+	wrk := worker.New(db, logger, "worker-1", time.Second, 10)
+	wrkCtx, wrkCancel := context.WithCancel(context.Background())
+	defer wrkCancel()
+	go wrk.Start(wrkCtx)
+
 	// Start server in a separate goroutine.
 	go func() {
 		log.Printf("Cronio server is listening on port %s", cfg.Port)
@@ -99,6 +106,7 @@ func main() {
 
 	log.Println("Shutdown signal received")
 	tickerCancel()
+	wrkCancel()
 
 	// Give active requests time to finish.
 	ctx, cancel := context.WithTimeout(
