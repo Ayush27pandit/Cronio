@@ -312,4 +312,4 @@ concurrency max 1, job takes 40s      ->  scheduler sees CountActive 1 and retur
 
 ## What is not built yet
 
-The dispatcher and NATS outbox, heartbeat renewal for long jobs, and the full UI. The API today is `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /v1/jobs/{id}/executions`. `GET /v1/executions/{id}`, `DELETE`, API keys, and per-tenant quotas are planned.
+The dispatcher and NATS outbox, heartbeat renewal for long jobs, and the full UI. The API today is `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `DELETE /v1/jobs/{id}` hard delete, `GET /v1/jobs/{id}/executions`, `GET /v1/executions/{id}` with attempts. Soft delete that keeps history, `retry` and `concurrency` fields in JSON, pagination, API keys, and per-tenant quotas are planned.

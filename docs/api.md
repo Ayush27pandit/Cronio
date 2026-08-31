@@ -172,11 +172,68 @@ curl -X PATCH http://localhost:8080/v1/jobs/$ID -H "X-Tenant-ID: $TENANT" -H "Co
 curl -X PATCH http://localhost:8080/v1/jobs/$ID -H "X-Tenant-ID: $TENANT" -H "Content-Type: application/json" -d '{"enabled":true,"target":{"url":"https://example.com/v2"}}'
 ```
 
+## Get execution detail
+
+```
+GET /v1/executions/{id}
+X-Tenant-ID: 11111111-1111-1111-1111-111111111111
+```
+
+`200` with execution and attempts, tenant scoped via `executions.tenant_id`. Includes `job_name` and `target.url` from the join so the UI does not need a second call.
+
+```json
+{
+  "id": "d1c505d8-ea93-4395-bc21-9c276987e16b",
+  "job_id": "1927f0cf-4114-4555-85b3-7d06b23d11f2",
+  "job_name": "worker-e2e-test",
+  "tenant_id": "11111111-1111-1111-1111-111111111111",
+  "status": "SUCCESS",
+  "scheduled_at": "2026-08-31T12:00:31+05:30",
+  "attempt_count": 1,
+  "target": {"url": "https://httpbin.org/post"},
+  "attempts": [
+    {"attempt_number": 1, "status": "SUCCESS", "response_status_code": 200, "response_body": "..."}
+  ]
+}
+```
+
+`404` if the id does not belong to the tenant, `400` for invalid UUID or missing tenant.
+
+```bash
+curl -H "X-Tenant-ID: $TENANT" http://localhost:8080/v1/executions/d1c505d8-ea93-4395-bc21-9c276987e16b
+```
+
+## Delete a job
+
+```
+DELETE /v1/jobs/{id}
+X-Tenant-ID: 11111111-1111-1111-1111-111111111111
+```
+
+Hard delete for MVP. Removes the job and its executions and attempts in one transaction, tenant scoped via `WHERE id and tenant_id`. Returns `204 No Content` on success, `404` if not found or wrong tenant. Future will be soft delete that keeps history and just sets `enabled false`.
+
+```bash
+curl -X DELETE -H "X-Tenant-ID: $TENANT" http://localhost:8080/v1/jobs/1927f0cf-4114-4555-85b3-7d06b23d11f2
+# 204, then GET returns 404
+```
+
+## List executions for a job
+
+```
+GET /v1/jobs/{id}/executions
+X-Tenant-ID: 11111111-1111-1111-1111-111111111111
+```
+
+`200` with 20 recent, newest first, tenant scoped via `job.Service.ListExecutions` that checks `GetJobForTenant` first.
+
+```bash
+curl -H "X-Tenant-ID: $TENANT" http://localhost:8080/v1/jobs/1927f0cf-4114-4555-85b3-7d06b23d11f2/executions
+```
+
 ## What is not there yet
 
-* `DELETE` is a soft disable via `PATCH {"enabled":false}`. Hard delete is planned.
+* `DELETE` is hard delete now, soft delete that keeps history is planned.
 * `retry_policy`, `concurrency`, `misfire` are columns but not exposed in the JSON yet.
-* Execution endpoints `GET /v1/jobs/{id}/executions` and `GET /v1/executions/{id}` are tables only, no handlers.
 * Auth is header only. API keys per tenant are planned.
 * Pagination and filtering are not there.
 

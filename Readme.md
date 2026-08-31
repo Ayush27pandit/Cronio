@@ -14,13 +14,13 @@ Cronio replaces crontabs and one-off schedulers with one place to create a job, 
 
 ## Status
 
-Working, not finished. Job, scheduler, and worker are done. The API creates jobs, scheduler turns due jobs into `READY` executions, worker claims and POSTs to your URL with retries.
+Working, not finished. Job, scheduler, worker, and execution detail are done. The API creates jobs, scheduler turns due jobs into `READY` executions, worker claims and POSTs to your URL with retries, and you can fetch one execution with its attempts or hard delete a job.
 
 | Area | Done | Next |
 |------|------|------|
 | Job definition | typed `Schedule` (cron 5-field, interval, once), tenant isolation, `next_run_at` calc | `retry` and `concurrency` fields in the API |
 | Storage | Postgres with `pgcrypto`, migrations `jobs`, `executions`, `attempts`, `FOR UPDATE SKIP LOCKED`, `worker.sql` claim | separate `leases` table when needed |
-| API | `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `GET /v1/jobs/{id}/executions`, `GET /health`, `X-Tenant-ID` header | `DELETE`, `GET /v1/executions/{id}`, API keys |
+| API | `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `DELETE /v1/jobs/{id}` hard delete, `GET /v1/jobs/{id}/executions`, `GET /v1/executions/{id}` with attempts, `GET /health`, `X-Tenant-ID` header | `retry` and `concurrency` fields, pagination, API keys |
 | Scheduler | ticker polls `GetDueJobs 100` every second and calls `ScheduleDue` fleet-safe | split to `cmd/scheduler` |
 | Worker | polls `GetReadyExecutions 10` every second where `scheduled_at <= NOW()`, claims with `lease_until 30s`, `POST` with `target_timeout_seconds`, writes `attempts`, retries with exponential backoff, reaps expired leases | `target.timeout` per job, heartbeat, `cmd/worker` split |
 
