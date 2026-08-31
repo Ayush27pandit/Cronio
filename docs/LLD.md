@@ -55,7 +55,7 @@ flowchart TB
     WK -->|POST| TG[Target URL]
     TG -->|200 or 500| WK
     WK -->|CompleteAttempt, SUCCESS or Reschedule READY| PG
-    C -->|GET /v1/jobs/{id}/executions| PG
+    C -->|GET /v1/jobs by id executions| PG
 ```
 
 ## Modules and file map
