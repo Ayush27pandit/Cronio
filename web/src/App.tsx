@@ -1,26 +1,46 @@
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Jobs from './routes/jobs'
 import JobDetail from './routes/jobs.$id'
 import ExecutionDetail from './routes/executions.$id'
+import Landing from './routes/landing'
 import JobForm from './components/JobForm'
+
+function isAppRoute(pathname: string) {
+  return pathname.startsWith('/app') || pathname.startsWith('/jobs') || pathname.startsWith('/executions')
+}
 
 export default function App() {
   const [tenant, setTenant] = useState(() => localStorage.getItem('tenant') || '11111111-1111-1111-1111-111111111111')
+  const location = useLocation()
+  const isApp = isAppRoute(location.pathname)
   useEffect(() => {
     localStorage.setItem('tenant', tenant)
   }, [tenant])
+
+  if (!isApp) {
+    return <Landing />
+  }
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8 bg-canvas min-h-screen">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tighter text-ink">Cronio <span className="text-mute font-normal">— execution layer for time</span></h1>
+          <Link to="/" className="text-2xl font-semibold tracking-tighter text-ink">
+            Cronio <span className="text-mute font-normal">— execution layer for time</span>
+          </Link>
           <p className="text-sm text-body mt-1">Separate web on 3000, API on 8080. Tenant header drives isolation.</p>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <Link to="/" className="px-3.5 py-1.5 rounded-pill bg-ink text-white text-sm font-medium">jobs</Link>
-          <a href="http://localhost:8080/health" target="_blank" className="px-3.5 py-1.5 rounded-sm bg-canvas-elevated border border-hairline text-ink text-sm">api health</a>
+          <Link to="/" className="px-3.5 py-1.5 rounded-sm bg-canvas-elevated border border-hairline text-ink text-sm">
+            Landing
+          </Link>
+          <Link to="/app" className="px-3.5 py-1.5 rounded-pill bg-ink text-white text-sm font-medium">
+            app
+          </Link>
+          <a href="http://localhost:8080/health" target="_blank" className="px-3.5 py-1.5 rounded-sm bg-canvas-elevated border border-hairline text-ink text-sm">
+            api health
+          </a>
         </div>
       </header>
 
@@ -41,7 +61,7 @@ export default function App() {
       <div className="mt-6">
         <Routes>
           <Route
-            path="/"
+            path="/app"
             element={
               <div className="grid md:grid-cols-5 gap-6">
                 <div className="md:col-span-2">
