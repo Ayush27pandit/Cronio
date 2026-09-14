@@ -107,29 +107,110 @@ export default function Landing() {
               loading="eager"
             />
           </div>
-          <div className="relative z-10 rounded-xl bg-[#111113] border border-gray-800 shadow-2xl overflow-hidden">
+          {/* Mock Dashboard - Cronio app */}
+          <div className="relative z-10 rounded-xl bg-[#0a0a0a] border border-gray-800 shadow-2xl overflow-hidden">
+            {/* Top bar */}
             <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3 bg-[#0a0a0a]">
-              <span className="font-mono text-xs" style={{ color: '#9ca3af' }}>
-                Cronio / production
-              </span>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">Ready • 3 jobs</span>
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded bg-white flex items-center justify-center text-black font-bold text-xs">C</div>
+                <span className="font-mono text-xs" style={{ color: '#e5e7eb' }}>
+                  Cronio / production
+                </span>
+                <span className="hidden md:inline text-xs px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">● Ready • 3 jobs • 2 workers</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="hidden md:inline text-xs" style={{ color: '#6b7280' }}>
+                  tenant 1111…1111
+                </span>
+                <div className="w-6 h-6 rounded-full bg-gray-700" />
+              </div>
             </div>
-            <div className="grid md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-800 font-mono text-xs">
-              <div className="p-4 bg-white text-black">
-                <p className="font-medium">daily report • 0 9 * * *</p>
-                <p className="text-gray-500 mt-1">Asia/Kolkata → https://api.internal/reports</p>
-                <p className="text-gray-400 mt-1">retry 3 concurrency 1 timeout 30s</p>
+            <div className="flex">
+              {/* Sidebar */}
+              <div className="hidden md:flex w-[140px] border-r border-gray-800 bg-[#0a0a0a] flex-col p-3 gap-1">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-white text-black text-xs font-medium">
+                  <span>◷</span> Jobs
+                </div>
+                <div className="flex items-center gap-2 px-2 py-1.5 text-xs" style={{ color: '#9ca3af' }}>
+                  <span>◎</span> Executions
+                </div>
+                <div className="flex items-center gap-2 px-2 py-1.5 text-xs" style={{ color: '#9ca3af' }}>
+                  <span>⚙</span> Settings
+                </div>
+                <div className="mt-auto pt-3 border-t border-gray-800">
+                  <div className="flex items-center gap-2 text-xs" style={{ color: '#6b7280' }}>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    API 200
+                  </div>
+                </div>
               </div>
-              <div className="p-4 bg-[#18181b]">
-                <p className="font-medium text-white">Executions</p>
-                <p className="text-gray-400 mt-1">12:00:31 SUCCESS 200 • 1.2s</p>
-                <p className="text-gray-400">12:00:41 SUCCESS 200 • 0.9s</p>
-                <p className="text-white">12:00:51 READY scheduled</p>
-              </div>
-              <div className="p-4 bg-[#111113]">
-                <p className="font-medium text-white">Worker lease</p>
-                <p className="text-gray-400 mt-1">claim_token abc lease_until 30s</p>
-                <p className="text-gray-400">ReapExpiredLeases every Tick</p>
+              {/* Main */}
+              <div className="flex-1 min-w-0">
+                {/* Toolbar */}
+                <div className="flex items-center justify-between border-b border-gray-800 px-4 py-2 bg-[#0a0a0a]">
+                  <span className="text-xs font-medium text-white">Jobs • 3</span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-white text-black">+ New job</span>
+                </div>
+                {/* Jobs table header */}
+                <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2 text-[10px] uppercase tracking-widest border-b border-gray-800" style={{ color: '#6b7280' }}>
+                  <span className="col-span-4">Job</span>
+                  <span className="col-span-3">Schedule</span>
+                  <span className="col-span-3">Next run</span>
+                  <span className="col-span-2 text-right">Status</span>
+                </div>
+                {/* Job rows */}
+                <div className="divide-y divide-gray-800">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-gray-800/30">
+                    <div className="col-span-12 md:col-span-4 min-w-0">
+                      <p className="text-xs font-medium text-white truncate">daily report</p>
+                      <p className="font-mono text-[11px] truncate" style={{ color: '#9ca3af' }}>
+                        0 9 * * * Asia/Kolkata
+                      </p>
+                    </div>
+                    <div className="col-span-6 md:col-span-3 font-mono text-xs" style={{ color: '#9ca3af' }}>
+                      https://api.internal/reports
+                    </div>
+                    <div className="col-span-6 md:col-span-3 font-mono text-xs text-white">09:00 IST</div>
+                    <div className="col-span-12 md:col-span-2 flex justify-end">
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">enabled</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-white text-black">
+                    <div className="col-span-12 md:col-span-4 min-w-0">
+                      <p className="text-xs font-medium truncate">health check • 15m</p>
+                      <p className="font-mono text-[11px] text-gray-500 truncate">https://example.com/ping</p>
+                    </div>
+                    <div className="col-span-6 md:col-span-3 font-mono text-xs text-gray-500">every 15m</div>
+                    <div className="col-span-6 md:col-span-3 font-mono text-xs">12:00:51 READY</div>
+                    <div className="col-span-12 md:col-span-2 flex justify-end">
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700">READY</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-gray-800/30">
+                    <div className="col-span-12 md:col-span-4 min-w-0">
+                      <p className="text-xs font-medium text-white truncate">weekly digest • Once</p>
+                      <p className="font-mono text-[11px] truncate" style={{ color: '#9ca3af' }}>
+                        2026-09-01T09:00:00Z
+                      </p>
+                    </div>
+                    <div className="col-span-6 md:col-span-3 font-mono text-xs" style={{ color: '#9ca3af' }}>
+                      timeout 30s retry 3
+                    </div>
+                    <div className="col-span-6 md:col-span-3 font-mono text-xs text-white">09:00 UTC</div>
+                    <div className="col-span-12 md:col-span-2 flex justify-end">
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-gray-800 border border-gray-700 text-white">enabled</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Bottom execution preview */}
+                <div className="border-t border-gray-800 bg-[#111113] px-4 py-2 flex items-center justify-between">
+                  <span className="font-mono text-xs" style={{ color: '#9ca3af' }}>
+                    Executions • 12:00:31 SUCCESS 200 • 1.2s → 12:00:41 SUCCESS • 12:00:51 READY
+                  </span>
+                  <span className="hidden md:inline text-xs" style={{ color: '#6b7280' }}>
+                    claim_token abc • lease 30s • SKIP LOCKED
+                  </span>
+                </div>
               </div>
             </div>
           </div>
