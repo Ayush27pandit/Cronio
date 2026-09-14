@@ -41,10 +41,11 @@ export default function Landing() {
       {/* Hero - SaaS template Hero as truth, adapted to Cronio with recursive erosion background */}
       <section className="relative min-h-[85vh] flex flex-col items-center justify-start px-6 pt-[88px] pb-12 md:pb-16 bg-black overflow-hidden" style={{ animation: 'fadeIn 0.6s ease-out' }}>
         <div className="absolute inset-0 z-0">
-          <RecursiveErosionBackground mode="dark" className="h-full w-full" style={{ filter: 'brightness(0.85) saturate(1.1)' }} />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black" />
+          <RecursiveErosionBackground mode="dark" className="h-full w-full" style={{ filter: 'brightness(0.72) saturate(0.85)' }} />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_35%,_black_80%)]" />
         </div>
-        <div className="relative z-10 flex flex-col items-center w-full">
+        <div className="relative z-10 flex flex-col items-center w-full drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
           <aside className="mb-6 inline-flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-700 bg-gray-800/50 backdrop-blur-sm max-w-full">
           <span className="text-xs text-center whitespace-nowrap" style={{ color: '#9ca3af' }}>
             Execution layer for time — Cronio is live

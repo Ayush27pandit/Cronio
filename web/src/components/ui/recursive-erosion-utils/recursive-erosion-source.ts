@@ -58,18 +58,18 @@ for (let i = 0; i < COUNT; i++) {
   positions[i*3] = x;
   positions[i*3+1] = y;
   positions[i*3+2] = z;
-  // warm erosion palette: from amber to ember to ash
+  // muted erosion palette: desaturated to keep text readable, text is white on black
   const warm = Math.random();
   if (warm > 0.92) {
-    colors[i*3] = 1.0; colors[i*3+1] = 0.82; colors[i*3+2] = 0.32;
+    colors[i*3] = 0.68; colors[i*3+1] = 0.58; colors[i*3+2] = 0.42;
   } else if (warm > 0.72) {
-    colors[i*3] = 0.98; colors[i*3+1] = 0.55; colors[i*3+2] = 0.12;
+    colors[i*3] = 0.55; colors[i*3+1] = 0.42; colors[i*3+2] = 0.32;
   } else if (warm > 0.45) {
-    colors[i*3] = 0.9; colors[i*3+1] = 0.32; colors[i*3+2] = 0.06;
+    colors[i*3] = 0.42; colors[i*3+1] = 0.32; colors[i*3+2] = 0.28;
   } else {
-    colors[i*3] = 0.22; colors[i*3+1] = 0.18; colors[i*3+2] = 0.16;
+    colors[i*3] = 0.18; colors[i*3+1] = 0.16; colors[i*3+2] = 0.15;
   }
-  sizes[i] = Math.random() * 1.35 + 0.35;
+  sizes[i] = Math.random() * 0.9 + 0.25;
   speeds[i] = Math.random() * 0.6 + 0.4;
 }
 
@@ -79,10 +79,10 @@ geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
 const mat = new THREE.PointsMaterial({
-  size: 0.055,
+  size: 0.042,
   vertexColors: true,
   transparent: true,
-  opacity: 0.92,
+  opacity: 0.38,
   sizeAttenuation: true,
   blending: THREE.AdditiveBlending,
   depthWrite: false
@@ -91,8 +91,8 @@ const mat = new THREE.PointsMaterial({
 const points = new THREE.Points(geo, mat);
 group.add(points);
 
-// Erosion trails - small glowing particles that trace surface
-const trailCount = 180;
+// Erosion trails - visible small trails that trace surface
+const trailCount = 420;
 const trailGeo = new THREE.BufferGeometry();
 const trailPos = new Float32Array(trailCount * 3);
 for (let i=0;i<trailCount;i++){
@@ -103,9 +103,13 @@ for (let i=0;i<trailCount;i++){
   trailPos[i*3+2]= Math.sin(a)*r;
 }
 trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos,3));
-const trailMat = new THREE.PointsMaterial({ color: 0xff8c32, size: 0.095, transparent:true, opacity:0.85, blending: THREE.AdditiveBlending, depthWrite:false });
+const trailMat = new THREE.PointsMaterial({ color: 0x8ec8ff, size: 0.14, transparent:true, opacity:0.92, blending: THREE.AdditiveBlending, depthWrite:false });
 const trails = new THREE.Points(trailGeo, trailMat);
 group.add(trails);
+// Trail glow halo
+const trailHaloMat = new THREE.PointsMaterial({ color: 0x3b82f6, size: 0.28, transparent:true, opacity:0.18, blending: THREE.AdditiveBlending, depthWrite:false });
+const trailsHalo = new THREE.Points(trailGeo, trailHaloMat);
+group.add(trailsHalo);
 
 // Lights
 const hemi = new THREE.HemisphereLight(0xffe8cc, 0x0a0908, 0.9);
