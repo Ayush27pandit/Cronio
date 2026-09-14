@@ -91,23 +91,39 @@ const mat = new THREE.PointsMaterial({
 const points = new THREE.Points(geo, mat);
 group.add(points);
 
-// Erosion trails - visible small trails that trace surface
-const trailCount = 420;
+// Meteor showers - heads with trailing particles like meteors
+const meteorCount = 22;
+const trailLen = 14;
+const trailTotal = meteorCount * trailLen;
 const trailGeo = new THREE.BufferGeometry();
-const trailPos = new Float32Array(trailCount * 3);
-for (let i=0;i<trailCount;i++){
-  const a = Math.random()*Math.PI*2;
-  const r = R * (0.98 + Math.random()*0.04);
-  trailPos[i*3]= Math.cos(a)*r;
-  trailPos[i*3+1]= (Math.random()-0.5)*0.6;
-  trailPos[i*3+2]= Math.sin(a)*r;
+const trailPos = new Float32Array(trailTotal * 3);
+const trailColors = new Float32Array(trailTotal * 3);
+const trailSizes = new Float32Array(trailTotal);
+const meteors = [];
+for (let m = 0; m < meteorCount; m++) {
+  const a = Math.random() * Math.PI * 2;
+  const incl = (Math.random() - 0.5) * 0.9;
+  const speed = 0.018 + Math.random() * 0.022;
+  const hue = 28 + Math.random() * 18; // warm amber
+  meteors.push({ a, incl, speed, offset: Math.random() * Math.PI * 2 });
+  for (let t = 0; t < trailLen; t++) {
+    const i = m * trailLen + t;
+    const fade = 1 - t / trailLen;
+    trailSizes[i] = (0.42 * fade + 0.08) * (0.9 + Math.random() * 0.2);
+    // head is warm amber, tail fades to ember ash
+    const mix = fade;
+    trailColors[i*3] = 0.95 * mix + 0.18 * (1-mix);
+    trailColors[i*3+1] = (0.62 * mix + 0.16 * (1-mix)) * (0.9 + Math.random()*0.1);
+    trailColors[i*3+2] = (0.18 * mix + 0.12 * (1-mix));
+  }
 }
-trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos,3));
-const trailMat = new THREE.PointsMaterial({ color: 0x8ec8ff, size: 0.14, transparent:true, opacity:0.92, blending: THREE.AdditiveBlending, depthWrite:false });
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+trailGeo.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+trailGeo.setAttribute('size', new THREE.BufferAttribute(trailSizes, 1));
+const trailMat = new THREE.PointsMaterial({ vertexColors: true, size: 0.11, transparent: true, opacity: 0.88, sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false });
 const trails = new THREE.Points(trailGeo, trailMat);
 group.add(trails);
-// Trail glow halo
-const trailHaloMat = new THREE.PointsMaterial({ color: 0x3b82f6, size: 0.28, transparent:true, opacity:0.18, blending: THREE.AdditiveBlending, depthWrite:false });
+const trailHaloMat = new THREE.PointsMaterial({ vertexColors: true, size: 0.32, transparent: true, opacity: 0.14, sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false });
 const trailsHalo = new THREE.Points(trailGeo, trailHaloMat);
 group.add(trailsHalo);
 
@@ -156,67 +172,75 @@ canvas.addEventListener('touchmove', (e) => {
   isHovering = true;
 }, {passive:true});
 
-// small trails: keep previous position for line trail effect via extra points
-const trailVelocities = new Float32Array(trailCount * 3);
-for(let i=0;i<trailCount*3;i++) trailVelocities[i] = (Math.random()-0.5)*0.002;
-
 let t = 0;
 let currentRotX = 0, currentRotY = 0;
 function animate(){
   requestAnimationFrame(animate);
   t += 0.00055;
   resize();
-  // slow rotation, lerp to mouse target when hovering
   currentRotX += (targetRot.x - currentRotX) * 0.02;
   currentRotY += (targetRot.y - currentRotY) * 0.02;
   group.rotation.y = t * 4.5 + currentRotY;
   group.rotation.x = Math.sin(t * 2.5) * 0.04 + currentRotX * 0.5;
   group.rotation.z = Math.cos(t * 1.8) * 0.02;
-  // subtle erosion pulse slower
   const pulse = Math.sin(t * 4) * 0.025 + 1;
   group.scale.set(pulse, pulse, pulse);
-  // drift trails with small trails and mouse influence
+  // meteor showers: heads streak along sphere orbits leaving trailing particles
   const pos = trailGeo.attributes.position;
-  for(let i=0;i<trailCount;i++){
-    const i3=i*3;
-    // base drift
-    pos.array[i3] += Math.sin(t*1.2 + i) * 0.0006 + trailVelocities[i3];
-    pos.array[i3+1] += Math.cos(t*0.9 + i*0.7) * 0.0004 + trailVelocities[i3+1];
-    pos.array[i3+2] += Math.sin(t*0.7 + i*0.3) * 0.0005;
-    // mouse hover: repel particles near cursor projection
-    if (isHovering) {
-      const dist = Math.sqrt(pos.array[i3]*pos.array[i3] + pos.array[i3+1]*pos.array[i3+1]);
-      const influence = Math.max(0, 1 - dist / 3.5) * 0.015;
-      pos.array[i3] += mouse.x * influence;
-      pos.array[i3+1] += mouse.y * influence;
-    }
-    // keep on sphere surface with small trail jitter
-    const len = Math.sqrt(pos.array[i3]*pos.array[i3] + pos.array[i3+1]*pos.array[i3+1] + pos.array[i3+2]*pos.array[i3+2]);
-    if (len > R*1.08 || len < R*0.92) {
-      const s = R / len;
-      pos.array[i3] *= s;
-      pos.array[i3+1] *= s;
-      pos.array[i3+2] *= s;
+  const col = trailGeo.attributes.color;
+  for(let m=0;m<meteorCount;m++){
+    const met = meteors[m];
+    met.a += met.speed * (isHovering ? 0.6 : 1);
+    const baseA = met.a + met.offset;
+    for(let tt=0;tt<trailLen;tt++){
+      const i = m * trailLen + tt;
+      const i3 = i*3;
+      const lag = tt * 0.045;
+      const a = baseA - lag;
+      const r = R * (0.995 + Math.sin(a*2.2 + met.offset)*0.015);
+      const incl = met.incl;
+      // orbit with slight inclination
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * Math.sin(incl) * r * 0.32 + Math.cos(incl) * (Math.random()-0.5)*0.02;
+      const z = Math.sin(a) * r;
+      // keep trails behind head with small decay
+      pos.array[i3] = x;
+      pos.array[i3+1] = y;
+      pos.array[i3+2] = z;
+      // fade tail: head bright, tail dim, mouse hover intensifies
+      const fade = 1 - tt / trailLen;
+      const hoverBoost = isHovering ? (1 + Math.max(0, 1 - Math.abs(mouse.x)*1.2) * 0.35) : 1;
+      const alpha = fade * hoverBoost;
+      // keep colors but vary opacity via size already, also nudge color slightly on hover
+      if (isHovering && tt === 0) {
+        col.array[i3] = Math.min(1, col.array[i3] + 0.08);
+        col.array[i3+1] = Math.min(1, col.array[i3+1] + 0.04);
+      }
     }
   }
   pos.needsUpdate = true;
+  col.needsUpdate = true;
   // interactive particle hover: particles near mouse glow and grow with small trails
   const pPos = geo.attributes.position;
   const pColors = geo.attributes.color;
-  const baseSizes = new Float32Array(sizes);
+  // keep base sizes for restore, created once
+  const baseSizesCopy = new Float32Array(sizes);
+  const baseColors = new Float32Array(colors);
   for(let i=0;i<COUNT;i++){
     const i3=i*3;
     const dx = pPos.array[i3] - mouse.x * R * 0.7;
     const dy = pPos.array[i3+1] - mouse.y * R * 0.7;
     const d2 = dx*dx + dy*dy;
     // restore toward base
-    sizes[i] += (baseSizes[i] - sizes[i]) * 0.06;
+    sizes[i] += (baseSizesCopy[i] - sizes[i]) * 0.06;
+    pColors.array[i3] += (baseColors[i3] - pColors.array[i3]) * 0.04;
+    pColors.array[i3+1] += (baseColors[i3+1] - pColors.array[i3+1]) * 0.04;
+    pColors.array[i3+2] += (baseColors[i3+2] - pColors.array[i3+2]) * 0.04;
     if (isHovering && d2 < 0.42) {
       const hover = (0.42 - d2) / 0.42;
       pColors.array[i3] = Math.min(1, pColors.array[i3] + hover * 0.18);
       pColors.array[i3+1] = Math.min(1, pColors.array[i3+1] + hover * 0.12);
       sizes[i] = Math.min(1.8, sizes[i] * (1 + hover * 0.5));
-      // small trail: nudge position slightly along normal for hover particles
       const n = 0.008 * hover;
       pPos.array[i3] += n * (Math.random()-0.5);
       pPos.array[i3+1] += n * (Math.random()-0.5);
@@ -226,9 +250,10 @@ function animate(){
   geo.attributes.position.needsUpdate = true;
   geo.attributes.color.needsUpdate = true;
   geo.attributes.size.needsUpdate = true;
-  // gentle flicker slower
-  mat.opacity = isHovering ? 0.96 : 0.88 + Math.sin(t*3)*0.04;
-  trailMat.opacity = isHovering ? 0.92 : 0.62 + Math.sin(t*2)*0.08;
+  // gentle flicker slower, keep text readable: lower base opacity
+  mat.opacity = isHovering ? 0.52 : 0.38 + Math.sin(t*3)*0.04;
+  trailMat.opacity = isHovering ? 0.88 : 0.72;
+  trailHaloMat.opacity = isHovering ? 0.22 : 0.12;
   const hoverScale = isHovering ? 1.015 : 1;
   group.scale.multiplyScalar(hoverScale);
   renderer.render(scene, camera);
