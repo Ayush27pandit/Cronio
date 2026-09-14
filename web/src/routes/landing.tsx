@@ -33,76 +33,114 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero - centered, clamp typography, radial gradient glow */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute left-1/2 top-[-120px] -translate-x-1/2 w-[1200px] h-[600px] bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.15),_transparent_60%),radial-gradient(ellipse_at_center,_rgba(139,92,246,0.12),_transparent_60%)] blur-3xl" />
-          <div className="absolute left-1/2 top-[200px] -translate-x-1/2 w-[900px] h-[500px] bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.08),_transparent_70%)] blur-2xl" />
-        </div>
-        <div className="relative max-w-[1280px] mx-auto px-6 pt-16 md:pt-24 pb-10 text-center">
-          <p className="text-xs uppercase tracking-widest text-[#64748B]">Execution layer for time</p>
-          <h1 className="mt-4 font-semibold tracking-tight leading-none text-[#0F172A] text-[clamp(2.5rem,6vw,4.5rem)] max-w-[18ch] mx-auto">
-            The managed cloud for time
-          </h1>
-          <p className="mt-4 text-[clamp(1rem,2vw,1.125rem)] text-[#475569] leading-relaxed max-w-[55ch] mx-auto">
-            The best place to schedule, run, and observe time triggered work. Push your schedule and walk away. We handle the firing, the retries, and the history.
-          </p>
-          <div className="flex items-center justify-center gap-3 mt-8">
-            <Link to="/app" className="px-6 py-2.5 rounded-full bg-[#0F172A] text-white font-medium text-sm">
-              Start building
-            </Link>
-            <a href="mailto:hello@cronio.dev" className="px-6 py-2.5 rounded-full bg-white border border-[#E5E7EB] text-[#0F172A] text-sm">
-              Contact sales
-            </a>
-          </div>
-          <div className="flex items-center justify-center gap-6 mt-6 text-xs uppercase tracking-widest text-[#94A3B8]">
-            <a href="#schedule" className="hover:text-[#0F172A]">
-              Schedule
-            </a>
-            <span>·</span>
-            <a href="#observe" className="hover:text-[#0F172A]">
-              Observe
-            </a>
-            <span>·</span>
-            <a href="#scale" className="hover:text-[#0F172A]">
-              Scale
-            </a>
-          </div>
+      {/* Hero - replaced with SaaS template hero, adapted to Cronio */}
+      <section
+        className="relative min-h-[85vh] flex flex-col items-center justify-start px-6 py-12 md:py-16 bg-white"
+        style={{ animation: 'fadeIn 0.6s ease-out' }}
+      >
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        `}</style>
 
-          {/* Dashboard mockup - centered, with glow blur behind */}
-          <div className="relative mt-10 md:mt-14 max-w-[1000px] mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-violet-500/20 to-indigo-500/20 blur-3xl rounded-3xl transform scale-95" />
-            <div className="relative rounded-xl bg-white border border-[#E5E7EB] shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 bg-[#F8FAFC]">
-                <span className="font-mono text-xs text-[#64748B]">Cronio / production</span>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">Ready • 3 jobs</span>
+        <aside className="mb-6 inline-flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-full border border-[#E5E7EB] bg-[#F8FAFC] max-w-full">
+          <span className="text-xs text-center whitespace-nowrap" style={{ color: '#64748b', fontFamily: 'Poppins, sans-serif' }}>
+            Execution layer for time — Cronio is live
+          </span>
+          <Link
+            to="/app"
+            className="flex items-center gap-1 text-xs hover:text-[#0F172A] transition-all active:scale-95 whitespace-nowrap"
+            style={{ color: '#64748b', fontFamily: 'Poppins, sans-serif' }}
+          >
+            Open app
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </Link>
+        </aside>
+
+        <h1
+          className="text-4xl md:text-5xl lg:text-6xl font-medium text-center max-w-3xl leading-tight"
+          style={{
+            background: 'linear-gradient(to bottom, #0F172A, #0F172A, rgba(15, 23, 42, 0.7))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            letterSpacing: '-0.05em',
+            fontFamily: 'Poppins, sans-serif',
+          }}
+        >
+          The managed cloud <br />
+          for time
+        </h1>
+
+        <p className="text-sm md:text-base text-center max-w-2xl mt-4" style={{ color: '#475569', fontFamily: 'Poppins, sans-serif' }}>
+          The best place to schedule, run, and observe time triggered work. Push your schedule and walk away. We handle the firing, the retries, and the history.
+        </p>
+
+        <div className="flex items-center gap-3 mt-8">
+          <Link
+            to="/app"
+            className="inline-flex items-center justify-center h-12 px-8 text-base font-medium rounded-lg bg-gradient-to-b from-[#0F172A] via-[#0F172A]/95 to-[#0F172A]/80 text-white hover:scale-105 active:scale-95 transition-all"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            Start building
+          </Link>
+          <a
+            href="mailto:hello@cronio.dev"
+            className="inline-flex items-center justify-center h-12 px-8 text-base font-medium rounded-lg bg-white border border-[#E5E7EB] text-[#0F172A] hover:bg-[#F8FAFC]"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            Contact sales
+          </a>
+        </div>
+
+        <div className="flex items-center justify-center gap-6 mt-6 text-xs uppercase tracking-widest" style={{ color: '#94A3B8', fontFamily: 'Poppins, sans-serif' }}>
+          <a href="#schedule" className="hover:text-[#0F172A]">
+            Schedule
+          </a>
+          <span>·</span>
+          <a href="#observe" className="hover:text-[#0F172A]">
+            Observe
+          </a>
+          <span>·</span>
+          <a href="#scale" className="hover:text-[#0F172A]">
+            Scale
+          </a>
+        </div>
+
+        <div className="w-full max-w-5xl relative mt-10 pb-6">
+          <div className="absolute left-1/2 w-[90%] pointer-events-none z-0" style={{ top: '-18%', transform: 'translateX(-50%)' }} aria-hidden="true">
+            <img
+              src="https://cdn.21st.dev/assets/mirror/ab/abe6d8090cc14780b846eee062024e4e03274c99d38188554239cd312a7180fa.png"
+              alt=""
+              className="w-full h-auto"
+              loading="eager"
+            />
+          </div>
+          <div className="relative z-10 rounded-xl bg-white border border-[#E5E7EB] shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 bg-[#F8FAFC]">
+              <span className="font-mono text-xs text-[#64748B]">Cronio / production</span>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">Ready • 3 jobs</span>
+            </div>
+            <div className="grid md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-[#E5E7EB] font-mono text-xs">
+              <div className="p-4">
+                <p className="font-medium text-[#0F172A]">daily report • 0 9 * * *</p>
+                <p className="text-[#64748B] mt-1">Asia/Kolkata → https://api.internal/reports</p>
+                <p className="text-[#94A3B8] mt-1">retry 3 concurrency 1 timeout 30s</p>
               </div>
-              <div className="grid md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-[#E5E7EB] font-mono text-xs">
-                <div className="p-4">
-                  <p className="font-medium text-[#0F172A]">daily report • 0 9 * * *</p>
-                  <p className="text-[#64748B] mt-1">Asia/Kolkata → https://api.internal/reports</p>
-                  <p className="text-[#94A3B8] mt-1">retry 3 concurrency 1 timeout 30s</p>
-                  <div className="mt-3 h-1 bg-[#E5E7EB] rounded-full overflow-hidden">
-                    <div className="h-full w-[85%] bg-[#0F172A]" />
-                  </div>
-                </div>
-                <div className="p-4 bg-[#F8FAFC]">
-                  <p className="font-medium text-[#0F172A]">Executions</p>
-                  <p className="text-[#475569] mt-1">12:00:31 SUCCESS 200 • 1.2s</p>
-                  <p className="text-[#475569]">12:00:41 SUCCESS 200 • 0.9s</p>
-                  <p className="text-[#3B82F6]">12:00:51 READY scheduled</p>
-                  <p className="text-[#94A3B8] mt-2">attempt 1 → POST target_url</p>
-                </div>
-                <div className="p-4">
-                  <p className="font-medium text-[#0F172A]">Worker lease</p>
-                  <p className="text-[#64748B] mt-1">claim_token abc</p>
-                  <p className="text-[#64748B]">lease_until 30s</p>
-                  <p className="text-[#64748B]">ReapExpiredLeases every Tick</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[#475569]">2 workers • SKIP LOCKED</span>
-                  </div>
-                </div>
+              <div className="p-4 bg-[#F8FAFC]">
+                <p className="font-medium text-[#0F172A]">Executions</p>
+                <p className="text-[#475569] mt-1">12:00:31 SUCCESS 200 • 1.2s</p>
+                <p className="text-[#475569]">12:00:41 SUCCESS 200 • 0.9s</p>
+                <p className="text-[#3B82F6]">12:00:51 READY scheduled</p>
+              </div>
+              <div className="p-4">
+                <p className="font-medium text-[#0F172A]">Worker lease</p>
+                <p className="text-[#64748B] mt-1">claim_token abc lease_until 30s</p>
+                <p className="text-[#64748B]">ReapExpiredLeases every Tick</p>
               </div>
             </div>
           </div>
