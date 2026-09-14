@@ -17,6 +17,7 @@ import (
 func New(port string, logger *slog.Logger, db *sql.DB) *http.Server {
 	r := chi.NewRouter()
 
+	r.Use(middleware.CORS)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recovery(logger))
 	r.Use(middleware.Logger(logger))
