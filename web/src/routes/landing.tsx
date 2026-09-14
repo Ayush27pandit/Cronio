@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import RecursiveErosionBackground from '@/components/ui/recursive-erosion'
 
 export default function Landing() {
   return (
@@ -37,9 +38,14 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero - SaaS template Hero as truth, adapted to Cronio */}
-      <section className="relative min-h-[85vh] flex flex-col items-center justify-start px-6 pt-[88px] pb-12 md:pb-16 bg-black" style={{ animation: 'fadeIn 0.6s ease-out' }}>
-        <aside className="mb-6 inline-flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-700 bg-gray-800/50 backdrop-blur-sm max-w-full">
+      {/* Hero - SaaS template Hero as truth, adapted to Cronio with recursive erosion background */}
+      <section className="relative min-h-[85vh] flex flex-col items-center justify-start px-6 pt-[88px] pb-12 md:pb-16 bg-black overflow-hidden" style={{ animation: 'fadeIn 0.6s ease-out' }}>
+        <div className="absolute inset-0 z-0">
+          <RecursiveErosionBackground mode="dark" className="h-full w-full" style={{ filter: 'brightness(0.85) saturate(1.1)' }} />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black" />
+        </div>
+        <div className="relative z-10 flex flex-col items-center w-full">
+          <aside className="mb-6 inline-flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-700 bg-gray-800/50 backdrop-blur-sm max-w-full">
           <span className="text-xs text-center whitespace-nowrap" style={{ color: '#9ca3af' }}>
             Execution layer for time — Cronio is live
           </span>
@@ -313,6 +319,7 @@ export default function Landing() {
             <div className="mx-auto w-[40%] h-1 bg-gray-600 rounded-b-md opacity-60" />
             <div className="mx-auto w-[80%] h-6 bg-gradient-to-b from-black/40 to-transparent blur-xl rounded-full mt-1" />
           </div>
+        </div>
         </div>
       </section>
 
