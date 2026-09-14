@@ -159,67 +159,149 @@ export default function Landing() {
                       </div>
                     </div>
                     {/* Main */}
-                    <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="flex-1 min-w-0 flex flex-col bg-[#0a0a0a]">
+                      {/* Metrics bar */}
+                      <div className="grid grid-cols-4 gap-px bg-gray-800 border-b border-gray-800">
+                        <div className="bg-[#0a0a0a] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-widest" style={{ color: '#6b7280' }}>
+                            Jobs
+                          </p>
+                          <p className="text-sm font-semibold text-white">12</p>
+                          <p className="text-[10px]" style={{ color: '#22c55e' }}>
+                            ↑ 3 today
+                          </p>
+                        </div>
+                        <div className="bg-[#0a0a0a] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-widest" style={{ color: '#6b7280' }}>
+                            Executions
+                          </p>
+                          <p className="text-sm font-semibold text-white">1.2k</p>
+                          <p className="text-[10px]" style={{ color: '#22c55e' }}>
+                            98.3% success
+                          </p>
+                        </div>
+                        <div className="bg-[#0a0a0a] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-widest" style={{ color: '#6b7280' }}>
+                            Avg duration
+                          </p>
+                          <p className="text-sm font-semibold text-white">412ms</p>
+                          <p className="text-[10px]" style={{ color: '#6b7280' }}>
+                            p95 890ms
+                          </p>
+                        </div>
+                        <div className="bg-[#0a0a0a] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-widest" style={{ color: '#6b7280' }}>
+                            Workers
+                          </p>
+                          <p className="text-sm font-semibold text-white">2 • 3</p>
+                          <p className="text-[10px]" style={{ color: '#6b7280' }}>
+                            schedulers • workers
+                          </p>
+                        </div>
+                      </div>
                       <div className="flex items-center justify-between border-b border-gray-800 px-3 py-1.5 bg-[#0a0a0a]">
-                        <span className="text-[11px] font-medium text-white">Jobs • 3</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white text-black">+ New job</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-white">Jobs • 12</span>
+                          <span className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 border border-gray-700" style={{ color: '#9ca3af' }}>
+                            10 enabled • 2 disabled • soft delete keeps history
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded-full bg-white text-black">+ New job</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-800" style={{ color: '#6b7280' }}>
+                            timeout 30s retry 3 concurrency 1
+                          </span>
+                        </div>
                       </div>
                       <div className="hidden md:grid grid-cols-12 gap-1 px-3 py-1.5 text-[9px] uppercase tracking-widest border-b border-gray-800" style={{ color: '#6b7280' }}>
-                        <span className="col-span-4">Job</span>
-                        <span className="col-span-3">Schedule</span>
-                        <span className="col-span-3">Next run</span>
-                        <span className="col-span-2 text-right">Status</span>
+                        <span className="col-span-4">Job • Schedule</span>
+                        <span className="col-span-3">Target • Timeout</span>
+                        <span className="col-span-3">Next run • Retry</span>
+                        <span className="col-span-2 text-right">Status • Lease</span>
                       </div>
                       <div className="divide-y divide-gray-800 flex-1">
                         <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center hover:bg-gray-800/30">
                           <div className="col-span-12 md:col-span-4 min-w-0">
                             <p className="text-[11px] font-medium text-white truncate">daily report</p>
                             <p className="font-mono text-[10px] truncate" style={{ color: '#9ca3af' }}>
-                              0 9 * * * Asia/Kolkata
+                              0 9 * * * Asia/Kolkata • cron
                             </p>
                           </div>
-                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]" style={{ color: '#9ca3af' }}>
-                            https://api.internal/reports
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] truncate" style={{ color: '#9ca3af' }}>
+                            https://api.internal/reports • 30s
                           </div>
-                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-white">09:00 IST</div>
-                          <div className="col-span-12 md:col-span-2 flex justify-end">
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-white">09:00 IST • Retry 3</div>
+                          <div className="col-span-12 md:col-span-2 flex justify-end gap-1">
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">enabled</span>
+                            <span className="hidden md:inline text-[10px] px-1 py-0.5 rounded bg-gray-800 border border-gray-700 text-white">1h</span>
                           </div>
                         </div>
                         <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center bg-white text-black">
                           <div className="col-span-12 md:col-span-4 min-w-0">
-                            <p className="text-[11px] font-medium truncate">health check • 15m</p>
-                            <p className="font-mono text-[10px] text-gray-500 truncate">https://example.com/ping</p>
+                            <p className="text-[11px] font-medium truncate">health check • 15m interval</p>
+                            <p className="font-mono text-[10px] text-gray-500 truncate">https://example.com/ping • timeout 60s</p>
                           </div>
-                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-gray-500">every 15m</div>
-                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]">12:00:51 READY</div>
-                          <div className="col-span-12 md:col-span-2 flex justify-end">
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-gray-500">retry 5 • concurrency 2</div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]">12:00:51 READY • lease 30s</div>
+                          <div className="col-span-12 md:col-span-2 flex justify-end gap-1">
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700">READY</span>
+                            <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 border border-gray-200 text-black">15m</span>
                           </div>
                         </div>
                         <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center hover:bg-gray-800/30">
                           <div className="col-span-12 md:col-span-4 min-w-0">
                             <p className="text-[11px] font-medium text-white truncate">weekly digest • Once</p>
                             <p className="font-mono text-[10px] truncate" style={{ color: '#9ca3af' }}>
-                              2026-09-01T09:00:00Z
+                              2026-09-01T09:00:00Z • Once
                             </p>
                           </div>
                           <div className="col-span-6 md:col-span-3 font-mono text-[10px]" style={{ color: '#9ca3af' }}>
-                            timeout 30s retry 3
+                            timeout 30s retry 3 • POST
                           </div>
-                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-white">09:00 UTC</div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-white">09:00 UTC • soft deleted</div>
                           <div className="col-span-12 md:col-span-2 flex justify-end">
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-white">enabled</span>
                           </div>
                         </div>
+                        <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center hover:bg-gray-800/30 opacity-60">
+                          <div className="col-span-12 md:col-span-4 min-w-0">
+                            <p className="text-[11px] font-medium text-white truncate">invoice run • 30m</p>
+                            <p className="font-mono text-[10px] truncate" style={{ color: '#9ca3af' }}>
+                              interval • disabled • next_run_at null
+                            </p>
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]" style={{ color: '#6b7280' }}>
+                            soft deleted keeps history
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]" style={{ color: '#6b7280' }}>
+                            enabled false
+                          </div>
+                          <div className="col-span-12 md:col-span-2 flex justify-end">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 border border-gray-700" style={{ color: '#6b7280' }}>
+                              disabled
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="border-t border-gray-800 bg-[#111113] px-3 py-1.5 flex items-center justify-between">
-                        <span className="font-mono text-[10px]" style={{ color: '#9ca3af' }}>
-                          Executions • 12:00:31 SUCCESS 200 • 1.2s
-                        </span>
-                        <span className="hidden md:inline text-[10px]" style={{ color: '#6b7280' }}>
-                          claim_token abc • SKIP LOCKED
-                        </span>
+                      {/* Execution preview with sparkline */}
+                      <div className="border-t border-gray-800 bg-[#111113] px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px]" style={{ color: '#9ca3af' }}>
+                            Executions last 24h • 12:00:31 SUCCESS 200 • 1.2s → 12:00:41 SUCCESS • 12:00:51 READY
+                          </span>
+                          <span className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700" style={{ color: '#e5e7eb' }}>
+                            attempts 1 • POST https://httpbin.org/post
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex items-end gap-px h-6">
+                          <div className="flex-1 bg-emerald-500/60 rounded-sm" style={{ height: '60%' }} />
+                          <div className="flex-1 bg-emerald-500/60 rounded-sm" style={{ height: '80%' }} />
+                          <div className="flex-1 bg-emerald-500/60 rounded-sm" style={{ height: '45%' }} />
+                          <div className="flex-1 bg-amber-500/60 rounded-sm" style={{ height: '90%' }} />
+                          <div className="flex-1 bg-emerald-500/60 rounded-sm" style={{ height: '70%' }} />
+                          <div className="flex-1 bg-gray-700 rounded-sm" style={{ height: '30%' }} />
+                          <div className="flex-1 bg-emerald-500/60 rounded-sm" style={{ height: '85%' }} />
+                        </div>
                       </div>
                     </div>
                   </div>
