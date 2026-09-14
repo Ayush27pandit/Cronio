@@ -24,7 +24,7 @@ This is the source of truth for where the product stands. `AGENTS.md` and `CONTE
 
 **Docs:** `Readme.md` reflects what is done vs next, `docs/architecture.md` explains deep modules and the DB, `docs/api.md` lists every endpoint with curl, `docs/STATE.md` here keeps future sessions in sync. `server/.env` holds `DB_URL` with `sslmode=require&channel_binding=require` and is loaded via `godotenv` when run from `server/`.
 
-**Frontend:** quick visual at `http://localhost:8080/` served from `server/static/index.html`. Tailwind via CDN, vanilla JS, tenant input, create form, jobs list, detail with `GET /v1/jobs/{id}/executions` (10 recent). Auto-refreshes every 2s. No build step, just `go run`.
+**Frontend:** quick visual at `http://localhost:8080/` served from `server/static/index.html` still. New `web/` Vite React TS with Tailwind, React Router, TanStack Query separate deploy on 3000 via `VITE_API_URL` to `api` 8080, jobs list with soft delete, `JobForm` with `timeout` `retry` `concurrency` validation, job detail with `GET /v1/jobs/{id}/executions` polling every 2s, execution detail with `GET /v1/executions/{id}` attempts. Tenant input in `localStorage` for MVP, Clerk path documented.
 
 ## How to run
 
@@ -33,6 +33,10 @@ This is the source of truth for where the product stands. `AGENTS.md` and `CONTE
 go vet ./... && go test ./...   # job tests in-process, scheduler tests need DB_URL
 go build -o /tmp/cronio ./cmd/api && /tmp/cronio
 # or go run ./cmd/api (build is more reliable for background)
+
+# from web/ separate deploy
+npm install
+VITE_API_URL=http://localhost:8080 npm run dev   # web on http://localhost:3000
 
 TENANT=11111111-1111-1111-1111-111111111111
 curl -X POST http://localhost:8080/v1/jobs -H "X-Tenant-ID: $TENANT" -H "Content-Type: application/json" -d '{"name":"daily report","schedule":{"type":"cron","expression":"0 9 * * *","timezone":"Asia/Kolkata"},"target":{"url":"https://example.com/reports"}}'
@@ -45,7 +49,7 @@ No `DATABASE_URL`, only `DB_URL`. `lsof -ti :8080 | xargs kill -9` before a rebu
 * Pagination and filtering, `retry` `initial_delay` and `max_delay` and `misfire` not exposed yet. `retry max_attempts`, `concurrency max_executions`, and `target timeout_seconds` are now exposed via `POST` and `PATCH`, `DELETE` is soft delete now that keeps history.
 * API keys per tenant. Today it is a header you pick.
 * Scheduler and worker as `cmd/scheduler` and `cmd/worker` for independent scaling, `leases` table separate from `executions`, Prometheus metrics.
-* Full Next.js UI in `web/`. Quick visual is done at `http://localhost:8080/`.
+* Clerk auth migration from `localStorage` tenant to httpOnly session. `web/` Vite React is done with full parity, `server/static` quick visual still.
 
 ## Future plans
 

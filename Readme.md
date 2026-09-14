@@ -14,15 +14,16 @@ Cronio replaces crontabs and one-off schedulers with one place to create a job, 
 
 ## Status
 
-Working, not finished. Job, scheduler, worker, and execution detail are done. The API creates jobs, scheduler turns due jobs into `READY` executions, worker claims and POSTs to your URL with retries, and you can fetch one execution with its attempts or hard delete a job.
+Working, not finished. Job, scheduler, worker, execution detail, and web are done. The API creates jobs with retry and concurrency, scheduler turns due jobs into `READY` executions, worker claims and POSTs to your URL with retries, and you can fetch one execution with its attempts or soft delete a job. Web is Vite React on 3000 separate from Go on 8080.
 
 | Area | Done | Next |
 |------|------|------|
-| Job definition | typed `Schedule` (cron 5-field, interval, once), tenant isolation, `next_run_at` calc | `retry` and `concurrency` fields in the API |
-| Storage | Postgres with `pgcrypto`, migrations `jobs`, `executions`, `attempts`, `FOR UPDATE SKIP LOCKED`, `worker.sql` claim | separate `leases` table when needed |
-| API | `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `DELETE /v1/jobs/{id}` hard delete, `GET /v1/jobs/{id}/executions`, `GET /v1/executions/{id}` with attempts, `GET /health`, `X-Tenant-ID` header | `retry` and `concurrency` fields, pagination, API keys |
+| Job definition | typed `Schedule` (cron 5-field, interval, once), tenant isolation, `next_run_at` calc, `target.timeout_seconds`, `retry.max_attempts`, `concurrency.max_executions` with validation 5 to 300 and 1 to 10 | `retry` `initial_delay` and `max_delay` and `misfire` |
+| Storage | Postgres with `pgcrypto`, migrations `jobs`, `executions`, `attempts`, `FOR UPDATE SKIP LOCKED`, `worker.sql` claim, `execution.sql` detail and `SoftDeleteJob` | separate `leases` table when needed |
+| API | `POST /v1/jobs`, `GET /v1/jobs`, `GET /v1/jobs/{id}`, `PATCH /v1/jobs/{id}`, `DELETE /v1/jobs/{id}` soft keep history, `GET /v1/jobs/{id}/executions`, `GET /v1/executions/{id}` with attempts and `job_name`, `GET /health`, `X-Tenant-ID` header | pagination, API keys |
 | Scheduler | ticker polls `GetDueJobs 100` every second and calls `ScheduleDue` fleet-safe | split to `cmd/scheduler` |
-| Worker | polls `GetReadyExecutions 10` every second where `scheduled_at <= NOW()`, claims with `lease_until 30s`, `POST` with `target_timeout_seconds`, writes `attempts`, retries with exponential backoff, reaps expired leases | `target.timeout` per job, heartbeat, `cmd/worker` split |
+| Worker | polls `GetReadyExecutions 10` every second where `scheduled_at <= NOW()`, claims with `lease_until 30s`, `POST` with `target_timeout_seconds`, writes `attempts`, retries with exponential backoff, reaps expired leases | heartbeat, `cmd/worker` split |
+| Web | Vite React TS, Tailwind, React Router, TanStack Query polling every 2s, separate deploy `web` 3000 to `api` 8080 via `VITE_API_URL`, jobs list with soft delete, JobForm with `timeout` `retry` `concurrency` validation, job detail with executions polling, execution detail with attempts | Clerk auth migration from `localStorage` tenant to httpOnly session |
 
 See `CONTEXT.md` for the domain language and `docs/` for details.
 
@@ -30,7 +31,7 @@ See `CONTEXT.md` for the domain language and `docs/` for details.
 
 ## Quick start
 
-**Requirements:** Go 1.22+, Postgres 15+ with `pgcrypto`, `DB_URL`.
+**Requirements:** Go 1.22+, Postgres 15+ with `pgcrypto`, `DB_URL`, Node 20+ for `web/`.
 
 ```bash
 # from server/
@@ -40,6 +41,11 @@ go test ./...         # in-process job tests, no DB needed
 go run ./cmd/api      # or go build -o /tmp/cronio ./cmd/api && /tmp/cronio
 curl http://localhost:8080/health
 # {"status":"ok"}
+
+# from web/ separate deploy
+npm install
+VITE_API_URL=http://localhost:8080 npm run dev  # web on http://localhost:3000
+VITE_API_URL=http://localhost:8080 npm run build
 ```
 
 Create a job. Pick any UUID as your tenant and reuse it.
@@ -110,7 +116,7 @@ More examples: `docs/api.md`.
 * **At-least-once.** Cronio gives you the execution id, your target handles dedupe.
 * **Independent scaling.** API, schedulers, and workers scale on their own load.
 
-Current deep modules: `server/internal/job/` owns the Job seam (`schedule.go` typed `Schedule`, `tenant.go` `TenantID`, `service.go` `ScheduleDue` with `SKIP LOCKED`), `server/internal/scheduler/ticker.go` owns the scheduler poll, `server/internal/worker/` owns the claim and execute seam (`service.go` `Tick`, `http.go` `doHTTP`, `backoff.go` `NextDelay`). All run in `server/cmd/api` for MVP, will split to `cmd/scheduler` and `cmd/worker` for scaling.
+Current deep modules: `server/internal/job/` owns the Job seam (`schedule.go` typed `Schedule`, `tenant.go` `TenantID`, `service.go` `ScheduleDue` with `SKIP LOCKED`), `server/internal/scheduler/ticker.go` owns the scheduler poll, `server/internal/worker/` owns the claim and execute seam (`service.go` `Tick`, `http.go` `doHTTP`, `backoff.go` `NextDelay`), `web/src/lib/api.ts` owns the fetch layer with `X-Tenant-ID` and `web/src/routes/` owns jobs list, `JobForm`, job detail, and execution detail with `refetchInterval 2000`. All Go run in `server/cmd/api` for MVP, `web` is Vite separate, will split to `cmd/scheduler` and `cmd/worker` for scaling.
 
 Details: `docs/architecture.md`.
 

@@ -1,6 +1,8 @@
 import { Routes, Route, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Jobs from './routes/jobs'
+import JobDetail from './routes/jobs.$id'
+import ExecutionDetail from './routes/executions.$id'
 import JobForm from './components/JobForm'
 
 export default function App() {
@@ -38,16 +40,24 @@ export default function App() {
         <div className="text-xs text-slate-400">API: {import.meta.env.VITE_API_URL || 'http://localhost:8080'}</div>
       </section>
 
-      <div className="mt-6 grid md:grid-cols-5 gap-6">
-        <div className="md:col-span-2">
-          <JobForm />
-        </div>
-        <div className="md:col-span-3">
-          <Routes>
-            <Route path="/" element={<Jobs />} />
-            <Route path="/jobs/:id" element={<Jobs />} />
-          </Routes>
-        </div>
+      <div className="mt-6">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <div className="grid md:grid-cols-5 gap-6">
+                <div className="md:col-span-2">
+                  <JobForm />
+                </div>
+                <div className="md:col-span-3">
+                  <Jobs />
+                </div>
+              </div>
+            }
+          />
+          <Route path="/jobs/:id" element={<JobDetail />} />
+          <Route path="/executions/:id" element={<ExecutionDetail />} />
+        </Routes>
       </div>
 
       <footer className="mt-8 text-center text-xs text-slate-400">Cronio web — Vite React — TanStack Query — Tailwind</footer>
