@@ -126,27 +126,107 @@ function resize(){
     camera.updateProjectionMatrix();
   }
 }
+// mouse hover handling
+const mouse = new THREE.Vector2(0, 0);
+const targetRot = new THREE.Vector2(0, 0);
+let isHovering = false;
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  targetRot.x = mouse.y * 0.12;
+  targetRot.y = mouse.x * 0.18;
+  isHovering = true;
+});
+canvas.addEventListener('mouseleave', () => {
+  isHovering = false;
+  targetRot.set(0,0);
+});
+canvas.addEventListener('touchmove', (e) => {
+  if (!e.touches[0]) return;
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.touches[0].clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.touches[0].clientY - rect.top) / rect.height) * 2 + 1;
+  targetRot.x = mouse.y * 0.12;
+  targetRot.y = mouse.x * 0.18;
+  isHovering = true;
+}, {passive:true});
+
+// small trails: keep previous position for line trail effect via extra points
+const trailVelocities = new Float32Array(trailCount * 3);
+for(let i=0;i<trailCount*3;i++) trailVelocities[i] = (Math.random()-0.5)*0.002;
+
 let t = 0;
+let currentRotX = 0, currentRotY = 0;
 function animate(){
   requestAnimationFrame(animate);
-  t += 0.0016;
+  t += 0.00055;
   resize();
-  group.rotation.y = t * 18;
-  group.rotation.x = Math.sin(t * 7) * 0.08;
-  group.rotation.z = Math.cos(t * 5) * 0.04;
-  // subtle erosion pulse
-  const pulse = Math.sin(t * 12) * 0.04 + 1;
+  // slow rotation, lerp to mouse target when hovering
+  currentRotX += (targetRot.x - currentRotX) * 0.02;
+  currentRotY += (targetRot.y - currentRotY) * 0.02;
+  group.rotation.y = t * 4.5 + currentRotY;
+  group.rotation.x = Math.sin(t * 2.5) * 0.04 + currentRotX * 0.5;
+  group.rotation.z = Math.cos(t * 1.8) * 0.02;
+  // subtle erosion pulse slower
+  const pulse = Math.sin(t * 4) * 0.025 + 1;
   group.scale.set(pulse, pulse, pulse);
-  // drift trails
+  // drift trails with small trails and mouse influence
   const pos = trailGeo.attributes.position;
   for(let i=0;i<trailCount;i++){
     const i3=i*3;
-    pos.array[i3] += Math.sin(t*3 + i) * 0.0012;
-    pos.array[i3+1] += Math.cos(t*2 + i*0.7) * 0.0008;
+    // base drift
+    pos.array[i3] += Math.sin(t*1.2 + i) * 0.0006 + trailVelocities[i3];
+    pos.array[i3+1] += Math.cos(t*0.9 + i*0.7) * 0.0004 + trailVelocities[i3+1];
+    pos.array[i3+2] += Math.sin(t*0.7 + i*0.3) * 0.0005;
+    // mouse hover: repel particles near cursor projection
+    if (isHovering) {
+      const dist = Math.sqrt(pos.array[i3]*pos.array[i3] + pos.array[i3+1]*pos.array[i3+1]);
+      const influence = Math.max(0, 1 - dist / 3.5) * 0.015;
+      pos.array[i3] += mouse.x * influence;
+      pos.array[i3+1] += mouse.y * influence;
+    }
+    // keep on sphere surface with small trail jitter
+    const len = Math.sqrt(pos.array[i3]*pos.array[i3] + pos.array[i3+1]*pos.array[i3+1] + pos.array[i3+2]*pos.array[i3+2]);
+    if (len > R*1.08 || len < R*0.92) {
+      const s = R / len;
+      pos.array[i3] *= s;
+      pos.array[i3+1] *= s;
+      pos.array[i3+2] *= s;
+    }
   }
   pos.needsUpdate = true;
-  // flicker
-  mat.opacity = 0.88 + Math.sin(t*9)*0.06;
+  // interactive particle hover: particles near mouse glow and grow with small trails
+  const pPos = geo.attributes.position;
+  const pColors = geo.attributes.color;
+  const baseSizes = new Float32Array(sizes);
+  for(let i=0;i<COUNT;i++){
+    const i3=i*3;
+    const dx = pPos.array[i3] - mouse.x * R * 0.7;
+    const dy = pPos.array[i3+1] - mouse.y * R * 0.7;
+    const d2 = dx*dx + dy*dy;
+    // restore toward base
+    sizes[i] += (baseSizes[i] - sizes[i]) * 0.06;
+    if (isHovering && d2 < 0.42) {
+      const hover = (0.42 - d2) / 0.42;
+      pColors.array[i3] = Math.min(1, pColors.array[i3] + hover * 0.18);
+      pColors.array[i3+1] = Math.min(1, pColors.array[i3+1] + hover * 0.12);
+      sizes[i] = Math.min(1.8, sizes[i] * (1 + hover * 0.5));
+      // small trail: nudge position slightly along normal for hover particles
+      const n = 0.008 * hover;
+      pPos.array[i3] += n * (Math.random()-0.5);
+      pPos.array[i3+1] += n * (Math.random()-0.5);
+      pPos.array[i3+2] += n * (Math.random()-0.5);
+    }
+  }
+  geo.attributes.position.needsUpdate = true;
+  geo.attributes.color.needsUpdate = true;
+  geo.attributes.size.needsUpdate = true;
+  // gentle flicker slower
+  mat.opacity = isHovering ? 0.96 : 0.88 + Math.sin(t*3)*0.04;
+  trailMat.opacity = isHovering ? 0.92 : 0.62 + Math.sin(t*2)*0.08;
+  const hoverScale = isHovering ? 1.015 : 1;
+  group.scale.multiplyScalar(hoverScale);
   renderer.render(scene, camera);
 }
 animate();
