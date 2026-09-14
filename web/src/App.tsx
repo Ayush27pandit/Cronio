@@ -1,15 +1,7 @@
 import { Routes, Route, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-
-function Placeholder() {
-  return (
-    <div className="rounded-xl bg-white border border-slate-200 p-5">
-      <h2 className="font-medium">Cronio web is running</h2>
-      <p className="text-sm text-slate-500 mt-1">Separate deploy on 3000, API on 8080 via VITE_API_URL.</p>
-      <p className="text-xs text-slate-400 mt-2">Next tasks will add jobs list, form, and execution detail with polling every 2s.</p>
-    </div>
-  )
-}
+import Jobs from './routes/jobs'
+import JobForm from './components/JobForm'
 
 export default function App() {
   const [tenant, setTenant] = useState(() => localStorage.getItem('tenant') || '11111111-1111-1111-1111-111111111111')
@@ -46,10 +38,16 @@ export default function App() {
         <div className="text-xs text-slate-400">API: {import.meta.env.VITE_API_URL || 'http://localhost:8080'}</div>
       </section>
 
-      <div className="mt-6">
-        <Routes>
-          <Route path="/" element={<Placeholder />} />
-        </Routes>
+      <div className="mt-6 grid md:grid-cols-5 gap-6">
+        <div className="md:col-span-2">
+          <JobForm />
+        </div>
+        <div className="md:col-span-3">
+          <Routes>
+            <Route path="/" element={<Jobs />} />
+            <Route path="/jobs/:id" element={<Jobs />} />
+          </Routes>
+        </div>
       </div>
 
       <footer className="mt-8 text-center text-xs text-slate-400">Cronio web — Vite React — TanStack Query — Tailwind</footer>
