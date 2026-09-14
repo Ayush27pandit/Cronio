@@ -98,7 +98,7 @@ export default function Landing() {
           </a>
         </div>
 
-        <div className="w-full max-w-5xl relative mt-10 pb-6">
+        <div className="w-full max-w-5xl relative mt-10 pb-10">
           <div className="absolute left-1/2 w-[90%] pointer-events-none z-0" style={{ top: '-18%', transform: 'translateX(-50%)' }} aria-hidden="true">
             <img
               src="https://cdn.21st.dev/assets/mirror/ab/abe6d8090cc14780b846eee062024e4e03274c99d38188554239cd312a7180fa.png"
@@ -107,112 +107,129 @@ export default function Landing() {
               loading="eager"
             />
           </div>
-          {/* Mock Dashboard - Cronio app */}
-          <div className="relative z-10 rounded-xl bg-[#0a0a0a] border border-gray-800 shadow-2xl overflow-hidden">
-            {/* Top bar */}
-            <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3 bg-[#0a0a0a]">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded bg-white flex items-center justify-center text-black font-bold text-xs">C</div>
-                <span className="font-mono text-xs" style={{ color: '#e5e7eb' }}>
-                  Cronio / production
-                </span>
-                <span className="hidden md:inline text-xs px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">● Ready • 3 jobs • 2 workers</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="hidden md:inline text-xs" style={{ color: '#6b7280' }}>
-                  tenant 1111…1111
-                </span>
-                <div className="w-6 h-6 rounded-full bg-gray-700" />
+          {/* Mock Dashboard - Laptop screen size 16:10 */}
+          <div className="relative z-10 mx-auto w-full max-w-[900px]">
+            {/* Laptop screen */}
+            <div className="relative rounded-t-xl bg-[#0a0a0a] border border-gray-700 shadow-2xl overflow-hidden p-2 pb-0">
+              {/* Screen bezel */}
+              <div className="rounded-lg bg-black border border-gray-800 overflow-hidden">
+                {/* Notch / camera */}
+                <div className="flex justify-center pt-1">
+                  <div className="w-16 h-1 rounded-full bg-gray-800" />
+                </div>
+                {/* Screen content 16:10 */}
+                <div className="aspect-[16/10] bg-[#0a0a0a] overflow-hidden rounded-b-lg mt-1">
+                  {/* Top bar */}
+                  <div className="flex items-center justify-between border-b border-gray-800 px-3 py-2 bg-[#0a0a0a]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="w-3 h-3 rounded-full bg-red-500" />
+                        <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                        <span className="w-3 h-3 rounded-full bg-green-500" />
+                      </div>
+                      <span className="font-mono text-[11px]" style={{ color: '#e5e7eb' }}>
+                        Cronio / production
+                      </span>
+                      <span className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">● Ready • 3 jobs • 2 workers</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="hidden md:inline text-[10px]" style={{ color: '#6b7280' }}>
+                        tenant 1111…1111
+                      </span>
+                      <div className="w-5 h-5 rounded-full bg-gray-700" />
+                    </div>
+                  </div>
+                  <div className="flex h-[calc(100%-36px)]">
+                    {/* Sidebar */}
+                    <div className="hidden md:flex w-[120px] border-r border-gray-800 bg-[#0a0a0a] flex-col p-2 gap-1">
+                      <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-white text-black text-[11px] font-medium">
+                        <span>◷</span> Jobs
+                      </div>
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-[11px]" style={{ color: '#9ca3af' }}>
+                        <span>◎</span> Executions
+                      </div>
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-[11px]" style={{ color: '#9ca3af' }}>
+                        <span>⚙</span> Settings
+                      </div>
+                      <div className="mt-auto pt-2 border-t border-gray-800">
+                        <div className="flex items-center gap-1.5 text-[10px]" style={{ color: '#6b7280' }}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          API 200 • 1.2k req
+                        </div>
+                      </div>
+                    </div>
+                    {/* Main */}
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <div className="flex items-center justify-between border-b border-gray-800 px-3 py-1.5 bg-[#0a0a0a]">
+                        <span className="text-[11px] font-medium text-white">Jobs • 3</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white text-black">+ New job</span>
+                      </div>
+                      <div className="hidden md:grid grid-cols-12 gap-1 px-3 py-1.5 text-[9px] uppercase tracking-widest border-b border-gray-800" style={{ color: '#6b7280' }}>
+                        <span className="col-span-4">Job</span>
+                        <span className="col-span-3">Schedule</span>
+                        <span className="col-span-3">Next run</span>
+                        <span className="col-span-2 text-right">Status</span>
+                      </div>
+                      <div className="divide-y divide-gray-800 flex-1">
+                        <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center hover:bg-gray-800/30">
+                          <div className="col-span-12 md:col-span-4 min-w-0">
+                            <p className="text-[11px] font-medium text-white truncate">daily report</p>
+                            <p className="font-mono text-[10px] truncate" style={{ color: '#9ca3af' }}>
+                              0 9 * * * Asia/Kolkata
+                            </p>
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]" style={{ color: '#9ca3af' }}>
+                            https://api.internal/reports
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-white">09:00 IST</div>
+                          <div className="col-span-12 md:col-span-2 flex justify-end">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">enabled</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center bg-white text-black">
+                          <div className="col-span-12 md:col-span-4 min-w-0">
+                            <p className="text-[11px] font-medium truncate">health check • 15m</p>
+                            <p className="font-mono text-[10px] text-gray-500 truncate">https://example.com/ping</p>
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-gray-500">every 15m</div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]">12:00:51 READY</div>
+                          <div className="col-span-12 md:col-span-2 flex justify-end">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700">READY</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-1 px-3 py-2 items-center hover:bg-gray-800/30">
+                          <div className="col-span-12 md:col-span-4 min-w-0">
+                            <p className="text-[11px] font-medium text-white truncate">weekly digest • Once</p>
+                            <p className="font-mono text-[10px] truncate" style={{ color: '#9ca3af' }}>
+                              2026-09-01T09:00:00Z
+                            </p>
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px]" style={{ color: '#9ca3af' }}>
+                            timeout 30s retry 3
+                          </div>
+                          <div className="col-span-6 md:col-span-3 font-mono text-[10px] text-white">09:00 UTC</div>
+                          <div className="col-span-12 md:col-span-2 flex justify-end">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-white">enabled</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-800 bg-[#111113] px-3 py-1.5 flex items-center justify-between">
+                        <span className="font-mono text-[10px]" style={{ color: '#9ca3af' }}>
+                          Executions • 12:00:31 SUCCESS 200 • 1.2s
+                        </span>
+                        <span className="hidden md:inline text-[10px]" style={{ color: '#6b7280' }}>
+                          claim_token abc • SKIP LOCKED
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex">
-              {/* Sidebar */}
-              <div className="hidden md:flex w-[140px] border-r border-gray-800 bg-[#0a0a0a] flex-col p-3 gap-1">
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-white text-black text-xs font-medium">
-                  <span>◷</span> Jobs
-                </div>
-                <div className="flex items-center gap-2 px-2 py-1.5 text-xs" style={{ color: '#9ca3af' }}>
-                  <span>◎</span> Executions
-                </div>
-                <div className="flex items-center gap-2 px-2 py-1.5 text-xs" style={{ color: '#9ca3af' }}>
-                  <span>⚙</span> Settings
-                </div>
-                <div className="mt-auto pt-3 border-t border-gray-800">
-                  <div className="flex items-center gap-2 text-xs" style={{ color: '#6b7280' }}>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    API 200
-                  </div>
-                </div>
-              </div>
-              {/* Main */}
-              <div className="flex-1 min-w-0">
-                {/* Toolbar */}
-                <div className="flex items-center justify-between border-b border-gray-800 px-4 py-2 bg-[#0a0a0a]">
-                  <span className="text-xs font-medium text-white">Jobs • 3</span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-white text-black">+ New job</span>
-                </div>
-                {/* Jobs table header */}
-                <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2 text-[10px] uppercase tracking-widest border-b border-gray-800" style={{ color: '#6b7280' }}>
-                  <span className="col-span-4">Job</span>
-                  <span className="col-span-3">Schedule</span>
-                  <span className="col-span-3">Next run</span>
-                  <span className="col-span-2 text-right">Status</span>
-                </div>
-                {/* Job rows */}
-                <div className="divide-y divide-gray-800">
-                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-gray-800/30">
-                    <div className="col-span-12 md:col-span-4 min-w-0">
-                      <p className="text-xs font-medium text-white truncate">daily report</p>
-                      <p className="font-mono text-[11px] truncate" style={{ color: '#9ca3af' }}>
-                        0 9 * * * Asia/Kolkata
-                      </p>
-                    </div>
-                    <div className="col-span-6 md:col-span-3 font-mono text-xs" style={{ color: '#9ca3af' }}>
-                      https://api.internal/reports
-                    </div>
-                    <div className="col-span-6 md:col-span-3 font-mono text-xs text-white">09:00 IST</div>
-                    <div className="col-span-12 md:col-span-2 flex justify-end">
-                      <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">enabled</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-white text-black">
-                    <div className="col-span-12 md:col-span-4 min-w-0">
-                      <p className="text-xs font-medium truncate">health check • 15m</p>
-                      <p className="font-mono text-[11px] text-gray-500 truncate">https://example.com/ping</p>
-                    </div>
-                    <div className="col-span-6 md:col-span-3 font-mono text-xs text-gray-500">every 15m</div>
-                    <div className="col-span-6 md:col-span-3 font-mono text-xs">12:00:51 READY</div>
-                    <div className="col-span-12 md:col-span-2 flex justify-end">
-                      <span className="text-[11px] px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700">READY</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-gray-800/30">
-                    <div className="col-span-12 md:col-span-4 min-w-0">
-                      <p className="text-xs font-medium text-white truncate">weekly digest • Once</p>
-                      <p className="font-mono text-[11px] truncate" style={{ color: '#9ca3af' }}>
-                        2026-09-01T09:00:00Z
-                      </p>
-                    </div>
-                    <div className="col-span-6 md:col-span-3 font-mono text-xs" style={{ color: '#9ca3af' }}>
-                      timeout 30s retry 3
-                    </div>
-                    <div className="col-span-6 md:col-span-3 font-mono text-xs text-white">09:00 UTC</div>
-                    <div className="col-span-12 md:col-span-2 flex justify-end">
-                      <span className="text-[11px] px-2 py-1 rounded-full bg-gray-800 border border-gray-700 text-white">enabled</span>
-                    </div>
-                  </div>
-                </div>
-                {/* Bottom execution preview */}
-                <div className="border-t border-gray-800 bg-[#111113] px-4 py-2 flex items-center justify-between">
-                  <span className="font-mono text-xs" style={{ color: '#9ca3af' }}>
-                    Executions • 12:00:31 SUCCESS 200 • 1.2s → 12:00:41 SUCCESS • 12:00:51 READY
-                  </span>
-                  <span className="hidden md:inline text-xs" style={{ color: '#6b7280' }}>
-                    claim_token abc • lease 30s • SKIP LOCKED
-                  </span>
-                </div>
-              </div>
-            </div>
+            {/* Laptop base - hinge and keyboard */}
+            <div className="mx-auto w-[96%] h-3 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-xl border-x border-b border-gray-700 shadow-xl" />
+            <div className="mx-auto w-[40%] h-1 bg-gray-600 rounded-b-md opacity-60" />
+            <div className="mx-auto w-[80%] h-6 bg-gradient-to-b from-black/40 to-transparent blur-xl rounded-full mt-1" />
           </div>
         </div>
       </section>
