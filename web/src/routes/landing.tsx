@@ -2,15 +2,15 @@ import { Link } from 'react-router-dom'
 
 export default function Landing() {
   return (
-    <div className="bg-black text-white -mx-6 -my-8 overflow-x-hidden">
+    <div className="bg-black text-white overflow-x-hidden">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
         * { font-family: 'Poppins', sans-serif; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
-      {/* Header - SaaS template Navigation as truth */}
-      <header className="sticky top-0 z-40 border-b border-gray-800/50 bg-black/80 backdrop-blur-md">
+      {/* Header - SaaS template Navigation as truth - fixed to avoid cropping by parent overflow */}
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-800/50 bg-black/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-[68px] flex items-center justify-between">
           <Link to="/" className="font-semibold tracking-tight text-white text-[15px]">
             Cronio
@@ -38,7 +38,7 @@ export default function Landing() {
       </header>
 
       {/* Hero - SaaS template Hero as truth, adapted to Cronio */}
-      <section className="relative min-h-[85vh] flex flex-col items-center justify-start px-6 py-12 md:py-16 bg-black" style={{ animation: 'fadeIn 0.6s ease-out' }}>
+      <section className="relative min-h-[85vh] flex flex-col items-center justify-start px-6 pt-[88px] pb-12 md:pb-16 bg-black" style={{ animation: 'fadeIn 0.6s ease-out' }}>
         <aside className="mb-6 inline-flex flex-wrap items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-700 bg-gray-800/50 backdrop-blur-sm max-w-full">
           <span className="text-xs text-center whitespace-nowrap" style={{ color: '#9ca3af' }}>
             Execution layer for time — Cronio is live
