@@ -32,24 +32,24 @@ export default function JobDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/" className="text-xs text-slate-500 hover:text-slate-700">
+      <Link to="/" className="text-xs text-mute hover:text-ink">
         ← back to jobs
       </Link>
 
-      <div className="rounded-xl bg-white border border-slate-200 p-5">
+      <div className="rounded-md bg-canvas-elevated border border-hairline p-5">
         <div className="flex justify-between items-start">
           <div>
-            <h2 className="font-medium">{j.name} <span className="font-mono text-xs text-slate-500">{j.id.slice(0, 8)}</span></h2>
-            <p className="font-mono text-xs text-slate-600 mt-1">{j.schedule?.type} {j.schedule?.expression} {j.schedule?.timezone}</p>
-            <p className="font-mono text-xs text-slate-500">{j.target?.url} timeout {j.target?.timeout_seconds}s</p>
-            <p className="font-mono text-xs text-slate-500">retry {j.retry?.max_attempts} concurrency {j.concurrency?.max_executions}</p>
-            <p className="text-xs mt-1">next_run_at {j.next_run_at ? new Date(j.next_run_at).toLocaleString() : '—'} enabled {String(j.enabled)}</p>
+            <h2 className="font-semibold tracking-tighter text-ink">{j.name} <span className="font-mono text-xs text-mute">{j.id.slice(0, 8)}</span></h2>
+            <p className="font-mono text-xs text-body mt-1">{j.schedule?.type} {j.schedule?.expression} {j.schedule?.timezone}</p>
+            <p className="font-mono text-xs text-mute">{j.target?.url} timeout {j.target?.timeout_seconds}s</p>
+            <p className="font-mono text-xs text-mute">retry {j.retry?.max_attempts} concurrency {j.concurrency?.max_executions}</p>
+            <p className="text-xs text-body mt-1">next_run_at {j.next_run_at ? new Date(j.next_run_at).toLocaleString() : '—'} enabled {String(j.enabled)}</p>
           </div>
           <div className="flex flex-col gap-2">
-            <button onClick={() => toggle.mutate()} disabled={toggle.isPending} className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs">
+            <button onClick={() => toggle.mutate()} disabled={toggle.isPending} className="px-3 py-1.5 rounded-sm bg-canvas-elevated border border-hairline text-xs text-ink">
               {j.enabled ? 'disable' : 'enable'}
             </button>
-            <button onClick={() => setEditing(!editing)} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs">
+            <button onClick={() => setEditing(!editing)} className="px-3 py-1.5 rounded-pill bg-ink text-white text-xs">
               {editing ? 'close' : 'edit'}
             </button>
           </div>
@@ -61,8 +61,8 @@ export default function JobDetail() {
         )}
       </div>
 
-      <div className="rounded-xl bg-white border border-slate-200 p-5">
-        <h3 className="text-xs uppercase tracking-wide text-slate-500">Recent executions, polls every 2s</h3>
+      <div className="rounded-md bg-canvas-elevated border border-hairline p-5">
+        <h3 className="mono-eyebrow text-mute">Recent executions, polls every 2s</h3>
         <div className="mt-3">
           <ExecutionsTable jobId={id!} />
         </div>

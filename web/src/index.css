@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+@layer base {
+  html {
+    font-family: Geist, Arial, sans-serif;
+    background: #fafafa;
+    color: #171717;
+  }
+  body {
+    font-family: Geist, Arial, sans-serif;
+    background: #fafafa;
+    color: #171717;
+  }
+}
+
+/* Geist Mono for code and eyebrows */
+.mono-eyebrow {
+  font-family: Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }

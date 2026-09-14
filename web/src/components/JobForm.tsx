@@ -83,67 +83,67 @@ export default function JobForm({ job, onDone }: { job?: any; onDone?: () => voi
   const mut = isEdit ? patch : create
 
   return (
-    <form onSubmit={handleSubmit((v) => mut.mutate(v as any))} className="rounded-xl bg-white border border-slate-200 p-5 space-y-3">
-      <h2 className="font-medium">{isEdit ? 'Edit job' : 'Create job'}</h2>
-      <p className="text-xs text-slate-500">Schedule is typed. Choose cron, interval, or once.</p>
+    <form onSubmit={handleSubmit((v) => mut.mutate(v as any))} className="rounded-md bg-canvas-elevated border border-hairline p-5 space-y-3">
+      <h2 className="font-semibold text-ink tracking-tighter">{isEdit ? 'Edit job' : 'Create job'}</h2>
+      <p className="text-xs text-mute">Schedule is typed. Choose cron, interval, or once.</p>
 
       <div>
-        <label className="text-xs uppercase tracking-wide text-slate-500">name</label>
-        <input {...register('name')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="daily report" />
-        {errors.name && <p className="text-xs text-red-600">{errors.name.message}</p>}
+        <label className="mono-eyebrow text-mute">name</label>
+        <input {...register('name')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 text-sm text-ink" placeholder="daily report" />
+        {errors.name && <p className="text-xs text-error">{errors.name.message}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">schedule type</label>
-          <select {...register('scheduleType')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <label className="mono-eyebrow text-mute">schedule type</label>
+          <select {...register('scheduleType')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 text-sm text-ink">
             <option value="cron">cron</option>
             <option value="interval">interval</option>
             <option value="once">once</option>
           </select>
         </div>
         <div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">timezone (cron only)</label>
-          <input {...register('timezone')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Asia/Kolkata" />
+          <label className="mono-eyebrow text-mute">timezone (cron only)</label>
+          <input {...register('timezone')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 text-sm text-ink" placeholder="Asia/Kolkata" />
         </div>
       </div>
 
       <div>
-        <label className="text-xs uppercase tracking-wide text-slate-500">expression</label>
-        <input {...register('expression')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="0 9 * * *  or  15m  or  2026-09-01T09:00:00Z" />
-        {errors.expression && <p className="text-xs text-red-600">{errors.expression.message}</p>}
-        <p className="text-xs text-slate-500 mt-1">cron: 5-field, interval: 15m/1h, once: RFC3339</p>
+        <label className="mono-eyebrow text-mute">expression</label>
+        <input {...register('expression')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 font-mono text-sm text-ink" placeholder="0 9 * * *  or  15m  or  2026-09-01T09:00:00Z" />
+        {errors.expression && <p className="text-xs text-error">{errors.expression.message}</p>}
+        <p className="text-xs text-mute mt-1">cron: 5-field, interval: 15m/1h, once: RFC3339</p>
       </div>
 
       <div>
-        <label className="text-xs uppercase tracking-wide text-slate-500">target url</label>
-        <input {...register('targetUrl')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="https://example.com/reports" />
-        {errors.targetUrl && <p className="text-xs text-red-600">{errors.targetUrl.message}</p>}
+        <label className="mono-eyebrow text-mute">target url</label>
+        <input {...register('targetUrl')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 font-mono text-sm text-ink" placeholder="https://example.com/reports" />
+        {errors.targetUrl && <p className="text-xs text-error">{errors.targetUrl.message}</p>}
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">timeout (5-300)</label>
-          <input type="number" {...register('timeout')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="30" />
-          {errors.timeout && <p className="text-xs text-red-600">{errors.timeout.message}</p>}
+          <label className="mono-eyebrow text-mute">timeout (5-300)</label>
+          <input type="number" {...register('timeout')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 text-sm text-ink" placeholder="30" />
+          {errors.timeout && <p className="text-xs text-error">{errors.timeout.message}</p>}
         </div>
         <div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">retry (1-10)</label>
-          <input type="number" {...register('retry')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="3" />
-          {errors.retry && <p className="text-xs text-red-600">{errors.retry.message}</p>}
+          <label className="mono-eyebrow text-mute">retry (1-10)</label>
+          <input type="number" {...register('retry')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 text-sm text-ink" placeholder="3" />
+          {errors.retry && <p className="text-xs text-error">{errors.retry.message}</p>}
         </div>
         <div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">concurrency (1-10)</label>
-          <input type="number" {...register('concurrency')} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="1" />
-          {errors.concurrency && <p className="text-xs text-red-600">{errors.concurrency.message}</p>}
+          <label className="mono-eyebrow text-mute">concurrency (1-10)</label>
+          <input type="number" {...register('concurrency')} className="mt-1 w-full rounded-sm border border-hairline bg-canvas-elevated px-3 py-2 text-sm text-ink" placeholder="1" />
+          {errors.concurrency && <p className="text-xs text-error">{errors.concurrency.message}</p>}
         </div>
       </div>
 
-      <button type="submit" disabled={mut.isPending} className="w-full mt-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium disabled:opacity-50">
+      <button type="submit" disabled={mut.isPending} className="w-full mt-2 px-4 py-2 rounded-pill bg-ink text-white text-sm font-medium disabled:opacity-50">
         {mut.isPending ? 'saving...' : isEdit ? 'save' : 'create'}
       </button>
-      {mut.isError && <p className="text-xs text-red-600">{(mut.error as any).message}</p>}
-      {mut.isSuccess && <p className="text-xs text-emerald-600">{isEdit ? 'saved' : 'created'}</p>}
+      {mut.isError && <p className="text-xs text-error">{(mut.error as any).message}</p>}
+      {mut.isSuccess && <p className="text-xs text-link">{isEdit ? 'saved' : 'created'}</p>}
     </form>
   )
 }

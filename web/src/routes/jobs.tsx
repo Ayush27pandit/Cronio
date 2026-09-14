@@ -41,28 +41,28 @@ export default function Jobs() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-medium">Jobs for this tenant</h2>
-        <span className="text-xs px-2 py-1 rounded-full bg-slate-100 border border-slate-200">{list.length}</span>
+        <h2 className="font-semibold tracking-tighter text-ink">Jobs for this tenant</h2>
+        <span className="text-xs px-2 py-1 rounded-full bg-canvas-elevated border border-hairline text-mute">{list.length}</span>
       </div>
       {list.map((j: any) => (
-        <div key={j.id} className={`rounded-lg border p-3 flex justify-between gap-3 ${j.enabled ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50'}`}>
+        <div key={j.id} className={`rounded-md border p-3 flex justify-between gap-3 ${j.enabled ? 'border-hairline bg-canvas-elevated' : 'border-hairline bg-canvas'}`}>
           <div className="min-w-0">
-            <p className="font-medium text-sm truncate">
-              {j.name} <span className="font-mono text-xs text-slate-500">{j.id.slice(0, 8)}</span>
+            <p className="font-medium text-sm text-ink truncate">
+              {j.name} <span className="font-mono text-xs text-mute">{j.id.slice(0, 8)}</span>
             </p>
-            <p className="font-mono text-xs text-slate-600 mt-1">
-              {j.schedule?.type} {j.schedule?.expression} {j.schedule?.timezone} → <span className="text-slate-900">{formatTime(j.next_run_at)}</span>
+            <p className="font-mono text-xs text-body mt-1">
+              {j.schedule?.type} {j.schedule?.expression} {j.schedule?.timezone} → <span className="text-ink">{formatTime(j.next_run_at)}</span>
             </p>
-            <p className="font-mono text-xs text-slate-500 truncate">{j.target?.url}</p>
-            <p className="font-mono text-xs text-slate-500">
+            <p className="font-mono text-xs text-mute truncate">{j.target?.url}</p>
+            <p className="font-mono text-xs text-mute">
               timeout {j.target?.timeout_seconds ?? 30}s retry {j.retry?.max_attempts ?? 3} concurrency {j.concurrency?.max_executions ?? 1}
             </p>
           </div>
           <div className="flex flex-col gap-2 shrink-0 items-center">
-            <span className={`text-xs px-2 py-1 rounded-full ${j.enabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+            <span className={`text-xs px-2 py-1 rounded-full border ${j.enabled ? 'bg-canvas-elevated border-hairline text-ink' : 'bg-warning-soft border-hairline text-warning-deep'}`}>
               {j.enabled ? 'enabled' : 'disabled'}
             </span>
-            <Link to={`/jobs/${j.id}`} className="px-3 py-1 rounded-lg bg-white border border-slate-300 text-xs">
+            <Link to={`/jobs/${j.id}`} className="px-3 py-1 rounded-sm bg-canvas-elevated border border-hairline text-xs text-ink">
               open
             </Link>
             <button
@@ -70,14 +70,14 @@ export default function Jobs() {
                 if (confirm(`Soft delete ${j.name}? Keeps executions.`)) del.mutate(j.id)
               }}
               disabled={del.isPending}
-              className="px-3 py-1 rounded-lg bg-white border border-slate-300 text-xs text-amber-700"
+              className="px-3 py-1 rounded-sm bg-canvas-elevated border border-hairline text-xs text-body"
             >
               delete
             </button>
           </div>
         </div>
       ))}
-      {del.isError && <p className="text-xs text-red-600">{(del.error as any).message}</p>}
+      {del.isError && <p className="text-xs text-error">{(del.error as any).message}</p>}
     </div>
   )
 }
