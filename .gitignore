@@ -38,3 +38,6 @@ go.work.sum
 # Local agent instructions — keep on disk, not on remote
 AGENTS.md
 CONTEXT.md
+
+node_modules/
+web/dist/
