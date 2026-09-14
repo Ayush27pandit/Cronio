@@ -7,6 +7,7 @@ export default defineConfig({
   envPrefix: 'VITE_',
   test: {
     environment: 'jsdom',
+    globals: true,
     setupFiles: ['./src/test/setup.ts'],
   },
 })
